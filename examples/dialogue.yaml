@@ -1,0 +1,245 @@
+schema_version: "0.1"
+id: interview_scene
+title: "审讯室：三镜头对话覆盖"
+frame_rate: { numerator: 24, denominator: 1 }
+coordinate_system:
+  units: meters
+  handedness: right
+  up_axis: y
+  forward_axis: negative_z
+metadata:
+  authoring_mode: example
+scenes:
+  - id: interrogation
+    title: "谁拿走了钥匙"
+    duration_frames: 240
+    narrative:
+      dramatic_question: "Alice 是否会承认她拿走了钥匙？"
+      themes: ["权力", "隐瞒"]
+      desired_audience_state: ["先建立空间，再逐渐进入人物压力"]
+      emotional_arc:
+        - { frame: 0, label: "克制", valence: -0.1, arousal: 0.2 }
+        - { frame: 160, label: "逼问", valence: -0.5, arousal: 0.75 }
+    subjects:
+      - id: alice
+        name: Alice
+        kind: character
+        initial_transform:
+          position: { x: -1.5, y: 0.0, z: 0.0 }
+          rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
+        dimensions_m: { x: 0.5, y: 1.7, z: 0.4 }
+      - id: bob
+        name: Bob
+        kind: character
+        initial_transform:
+          position: { x: 1.5, y: 0.0, z: 0.0 }
+          rotation_deg: { pitch: 0.0, yaw: -90.0, roll: 0.0 }
+        dimensions_m: { x: 0.5, y: 1.8, z: 0.4 }
+      - id: table
+        name: Table
+        kind: prop
+        initial_transform:
+          position: { x: 0.0, y: 0.4, z: 0.0 }
+        dimensions_m: { x: 2.0, y: 0.8, z: 0.9 }
+    markers:
+      - id: room_center
+        name: Room center
+        position: { x: 0.0, y: 1.2, z: 0.0 }
+    axes:
+      - id: dialogue_axis
+        name: Alice–Bob relationship axis
+        purpose: relationship
+        from: { type: subject, id: alice }
+        to: { type: subject, id: bob }
+    blocking:
+      - subject_id: alice
+        keyframes:
+          - frame: 0
+            transform:
+              position: { x: -1.5, y: 0.0, z: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
+            gaze_target: { type: subject, id: bob }
+            action: "坐着，保持克制"
+          - frame: 240
+            transform:
+              position: { x: -1.5, y: 0.0, z: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
+            gaze_target: { type: subject, id: bob }
+            action: "停顿后直视 Bob"
+      - subject_id: bob
+        keyframes:
+          - frame: 0
+            transform:
+              position: { x: 1.5, y: 0.0, z: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: -90.0, roll: 0.0 }
+            gaze_target: { type: subject, id: alice }
+            action: "身体前倾"
+          - frame: 240
+            transform:
+              position: { x: 1.5, y: 0.0, z: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: -90.0, roll: 0.0 }
+            gaze_target: { type: subject, id: alice }
+            action: "继续逼问"
+    beats:
+      - id: establish_power
+        range: { start: 0, end: 80 }
+        intent: "建立人物位置与桌面的权力分隔"
+        emphasis: medium
+        subject_ids: [alice, bob, table]
+      - id: alice_hesitates
+        range: { start: 80, end: 160 }
+        intent: "压缩空间，观察 Alice 的犹豫"
+        emphasis: high
+        subject_ids: [alice]
+      - id: bob_pressures
+        range: { start: 160, end: 240 }
+        intent: "用反打确认 Bob 的施压"
+        emphasis: high
+        subject_ids: [bob]
+    lighting_setups:
+      - id: cold_interrogation
+        name: "冷色顶灯与弱补光"
+        contrast_ratio: 4.0
+        sources:
+          - id: overhead_key
+            kind: area
+            role: key
+            transform:
+              position: { x: 0.0, y: 3.2, z: 0.0 }
+              rotation_deg: { pitch: -90.0, yaw: 0.0, roll: 0.0 }
+            intensity_lux: 900.0
+            color_temperature_k: 6200
+            motivated_by: "画内荧光顶灯"
+          - id: door_fill
+            kind: area
+            role: fill
+            transform:
+              position: { x: 0.0, y: 1.8, z: -3.0 }
+            intensity_lux: 160.0
+            color_temperature_k: 5000
+            motivated_by: "门缝环境光"
+    shots:
+      - id: master_two_shot
+        range: { start: 0, end: 80 }
+        purpose: [establish, orient]
+        coverage_role: master
+        framing:
+          shot_size: medium_long
+          horizontal_angle: frontal
+          vertical_angle: eye_level
+          subject_ids: [alice, bob, table]
+          composition:
+            strategy: symmetric
+            headroom: 0.10
+            depth_layers:
+              - { name: foreground_table, role: foreground, subject_ids: [table] }
+              - { name: characters, role: midground, subject_ids: [alice, bob] }
+        camera:
+          rig: tripod
+          initial_state:
+            transform:
+              position: { x: 0.0, y: 1.45, z: -5.2 }
+            lens:
+              focal_length_mm: 40.0
+              aperture_f: 4.0
+            focus:
+              target: { type: marker, id: room_center }
+              distance_m: 5.2
+            exposure:
+              iso: 800
+              shutter_angle_deg: 180.0
+              white_balance_k: 5000
+        lighting_setup_id: cold_interrogation
+        continuity:
+          axis_observations:
+            - { axis_id: dialogue_axis, side: positive }
+          camera_azimuth_deg: 0.0
+          eyelines:
+            - subject_id: alice
+              target: { type: subject, id: bob }
+              screen_direction: right
+            - subject_id: bob
+              target: { type: subject, id: alice }
+              screen_direction: left
+      - id: alice_close_up
+        range: { start: 80, end: 160 }
+        purpose: [isolate, emphasize]
+        coverage_role: close_up
+        framing:
+          shot_size: close_up
+          horizontal_angle: three_quarter
+          vertical_angle: eye_level
+          subject_ids: [alice]
+          composition:
+            strategy: rule_of_thirds
+            headroom: 0.07
+            lead_room: 0.28
+            negative_space: right
+        camera:
+          rig: dolly
+          initial_state:
+            transform:
+              position: { x: -0.65, y: 1.48, z: -2.7 }
+              rotation_deg: { pitch: 0.0, yaw: -14.0, roll: 0.0 }
+            lens:
+              focal_length_mm: 65.0
+              aperture_f: 2.8
+            focus:
+              target: { type: subject, id: alice }
+            exposure:
+              iso: 800
+              shutter_angle_deg: 180.0
+              white_balance_k: 5000
+          operations:
+            - range: { start: 16, end: 72 }
+              easing: ease_in_out
+              operation:
+                op: dolly
+                distance_m: 0.35
+        lighting_setup_id: cold_interrogation
+        continuity:
+          axis_observations:
+            - { axis_id: dialogue_axis, side: positive }
+          camera_azimuth_deg: 55.0
+          eyelines:
+            - subject_id: alice
+              target: { type: subject, id: bob }
+              screen_direction: right
+      - id: bob_close_up
+        range: { start: 160, end: 240 }
+        purpose: [reaction, emphasize]
+        coverage_role: close_up
+        framing:
+          shot_size: close_up
+          horizontal_angle: three_quarter
+          vertical_angle: low
+          subject_ids: [bob]
+          composition:
+            strategy: rule_of_thirds
+            headroom: 0.07
+            lead_room: 0.28
+            negative_space: left
+        camera:
+          rig: tripod
+          initial_state:
+            transform:
+              position: { x: 0.65, y: 1.38, z: -2.65 }
+              rotation_deg: { pitch: -2.0, yaw: 14.0, roll: 0.0 }
+            lens:
+              focal_length_mm: 75.0
+              aperture_f: 2.8
+            focus:
+              target: { type: subject, id: bob }
+            exposure:
+              iso: 800
+              shutter_angle_deg: 180.0
+              white_balance_k: 5000
+        lighting_setup_id: cold_interrogation
+        continuity:
+          axis_observations:
+            - { axis_id: dialogue_axis, side: positive }
+          camera_azimuth_deg: 115.0
+          eyelines:
+            - subject_id: bob
+              target: { type: subject, id: alice }
+              screen_direction: left

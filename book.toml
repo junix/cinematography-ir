@@ -1,0 +1,11 @@
+[book]
+authors = ["cinematography-ir contributors"]
+language = "zh-CN"
+multilingual = false
+src = "docs"
+title = "电影摄影系统化导论与 Cinematography IR"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+smart-punctuation = true

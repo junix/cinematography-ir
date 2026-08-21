@@ -1,0 +1,61 @@
+schema_version: "0.1"
+id: dolly_zoom_example
+title: "Dolly Zoom：主体尺度约束"
+frame_rate: { numerator: 24, denominator: 1 }
+scenes:
+  - id: realization
+    title: "角色意识到危险"
+    duration_frames: 120
+    narrative:
+      dramatic_question: "角色何时意识到背景中的威胁？"
+      desired_audience_state: ["主体稳定，背景透视发生异常扩张"]
+    subjects:
+      - id: hero
+        name: Hero
+        kind: character
+        initial_transform:
+          position: { x: 0.0, y: 0.0, z: 0.0 }
+      - id: corridor
+        name: Corridor
+        kind: environment
+        initial_transform:
+          position: { x: 0.0, y: 0.0, z: 4.0 }
+    shots:
+      - id: realization_push
+        range: { start: 0, end: 120 }
+        purpose: [subjective, emphasize, disorient]
+        coverage_role: close_up
+        framing:
+          shot_size: medium_close_up
+          horizontal_angle: frontal
+          vertical_angle: eye_level
+          subject_ids: [hero]
+          composition:
+            strategy: centered
+            headroom: 0.08
+            depth_layers:
+              - { name: subject, role: midground, subject_ids: [hero] }
+              - { name: threat_space, role: background, subject_ids: [corridor] }
+        camera:
+          rig: dolly
+          initial_state:
+            transform:
+              position: { x: 0.0, y: 1.55, z: -4.5 }
+            lens:
+              focal_length_mm: 50.0
+              aperture_f: 4.0
+            focus:
+              target: { type: subject, id: hero }
+              distance_m: 4.5
+          operations:
+            - range: { start: 24, end: 112 }
+              easing: ease_in_out
+              operation:
+                op: dolly_zoom
+                target: { type: subject, id: hero }
+                to_distance_m: 2.2
+                keep_subject_frame_fraction: 0.42
+        continuity:
+          camera_azimuth_deg: 0.0
+        notes:
+          - "执行器需要联立求解相机距离与焦距，而不是简单叠加 dolly 和 zoom。"

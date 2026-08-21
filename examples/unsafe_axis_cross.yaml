@@ -1,0 +1,63 @@
+schema_version: "0.1"
+id: unsafe_axis_cross
+title: "用于测试的未经解释越轴"
+frame_rate: { numerator: 24, denominator: 1 }
+scenes:
+  - id: bad_dialogue
+    title: "空间方向突然翻转"
+    duration_frames: 96
+    subjects:
+      - { id: a, name: A, kind: character }
+      - { id: b, name: B, kind: character }
+    axes:
+      - id: relation
+        name: relation axis
+        purpose: relationship
+        from: { type: subject, id: a }
+        to: { type: subject, id: b }
+    shots:
+      - id: a_side
+        range: { start: 0, end: 48 }
+        purpose: [observe]
+        coverage_role: close_up
+        framing:
+          shot_size: close_up
+          subject_ids: [a]
+        camera:
+          rig: tripod
+          initial_state:
+            transform:
+              position: { x: -0.5, y: 1.5, z: -2.0 }
+            focus:
+              target: { type: subject, id: a }
+        continuity:
+          axis_observations:
+            - { axis_id: relation, side: positive }
+          camera_azimuth_deg: 20.0
+          eyelines:
+            - subject_id: a
+              target: { type: subject, id: b }
+              screen_direction: right
+      - id: b_wrong_side
+        range: { start: 48, end: 96 }
+        purpose: [reaction]
+        coverage_role: close_up
+        framing:
+          shot_size: close_up
+          subject_ids: [b]
+        camera:
+          rig: tripod
+          initial_state:
+            transform:
+              position: { x: 0.5, y: 1.5, z: 2.0 }
+              rotation_deg: { pitch: 0.0, yaw: 180.0, roll: 0.0 }
+            focus:
+              target: { type: subject, id: b }
+        continuity:
+          axis_observations:
+            - { axis_id: relation, side: negative }
+          camera_azimuth_deg: 200.0
+          eyelines:
+            - subject_id: b
+              target: { type: subject, id: a }
+              screen_direction: right

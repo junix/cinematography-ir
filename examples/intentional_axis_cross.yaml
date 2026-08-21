@@ -1,0 +1,94 @@
+schema_version: "0.1"
+id: intentional_axis_cross
+title: "可解释的跨轴运动"
+frame_rate: { numerator: 24, denominator: 1 }
+scenes:
+  - id: alliance_shift
+    title: "关系改变时重建轴线"
+    duration_frames: 180
+    narrative:
+      dramatic_question: "两名角色是否从对立转为联盟？"
+      desired_audience_state: ["先维持对立，再通过连续跨轴显示关系变化"]
+    subjects:
+      - id: a
+        name: A
+        kind: character
+        initial_transform:
+          position: { x: -1.0, y: 0.0, z: 0.0 }
+      - id: b
+        name: B
+        kind: character
+        initial_transform:
+          position: { x: 1.0, y: 0.0, z: 0.0 }
+    axes:
+      - id: relation
+        name: A–B axis
+        purpose: relationship
+        from: { type: subject, id: a }
+        to: { type: subject, id: b }
+    shots:
+      - id: side_positive
+        range: { start: 0, end: 60 }
+        purpose: [orient]
+        coverage_role: two_shot
+        framing:
+          shot_size: medium
+          subject_ids: [a, b]
+        camera:
+          rig: gimbal
+          initial_state:
+            transform:
+              position: { x: 0.0, y: 1.5, z: -3.0 }
+            focus:
+              target: { type: point, position: { x: 0.0, y: 1.4, z: 0.0 } }
+        continuity:
+          axis_observations:
+            - { axis_id: relation, side: positive }
+          camera_azimuth_deg: 0.0
+      - id: visible_cross
+        range: { start: 60, end: 120 }
+        purpose: [connect, reveal]
+        coverage_role: two_shot
+        framing:
+          shot_size: medium
+          subject_ids: [a, b]
+        camera:
+          rig: gimbal
+          initial_state:
+            transform:
+              position: { x: 0.0, y: 1.5, z: -3.0 }
+            focus:
+              target: { type: point, position: { x: 0.0, y: 1.4, z: 0.0 } }
+          operations:
+            - range: { start: 0, end: 60 }
+              easing: ease_in_out
+              operation:
+                op: orbit
+                target: { type: point, position: { x: 0.0, y: 1.4, z: 0.0 } }
+                azimuth_deg: 180.0
+                elevation_deg: 0.0
+                radius_m: 3.0
+        continuity:
+          axis_observations:
+            - { axis_id: relation, side: on_axis }
+          camera_azimuth_deg: 90.0
+          bridge: visible_axis_cross
+      - id: side_negative
+        range: { start: 120, end: 180 }
+        purpose: [emphasize]
+        coverage_role: two_shot
+        framing:
+          shot_size: medium_close_up
+          subject_ids: [a, b]
+        camera:
+          rig: tripod
+          initial_state:
+            transform:
+              position: { x: 0.0, y: 1.5, z: 3.0 }
+              rotation_deg: { pitch: 0.0, yaw: 180.0, roll: 0.0 }
+            focus:
+              target: { type: point, position: { x: 0.0, y: 1.4, z: 0.0 } }
+        continuity:
+          axis_observations:
+            - { axis_id: relation, side: negative }
+          camera_azimuth_deg: 180.0

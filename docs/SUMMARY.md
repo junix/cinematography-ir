@@ -1,0 +1,18 @@
+# Summary
+
+- [导论：把摄影看成约束系统](introduction.md)
+- [1. 影像形成与分析层级](01-image-formation.md)
+- [2. 镜头、景别、机位与视点](02-shot-design.md)
+- [3. 镜头光学、透视、景深与曝光](03-lens-focus-exposure.md)
+- [4. 构图、画面重量与空间层次](04-composition.md)
+- [5. 运镜：位移、旋转、光学与程序化运动](05-camera-movement.md)
+- [6. 场面调度：人物、摄影机和光的共同编舞](06-blocking-staging.md)
+- [7. 空间连续性：轴线、方向、视线与切换](07-continuity.md)
+- [8. 光线、色彩与影调](08-lighting-color.md)
+- [9. Coverage、剪辑与镜头序列](09-coverage-editing.md)
+- [10. 视觉叙事与镜头动机](10-visual-storytelling.md)
+- [11. Cinematography IR 的分层架构](11-ir-architecture.md)
+- [12. IR 字段与 YAML 示例](12-ir-reference.md)
+- [13. 验证、诊断与失败模式](13-validation.md)
+- [14. Agent、求解器与执行器](14-agent-compiler.md)
+- [附录：术语与概念边界](appendix-glossary.md)
