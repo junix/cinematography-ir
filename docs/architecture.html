@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <script data-code2arch-runtime-bootstrap>
+    window.__docReady = false;
+    window.__docErrors = [];
+    window.addEventListener("error", (event) => {
+      window.__docErrors.push(String(event.error || event.message || "unknown error"));
+    });
+    window.addEventListener("unhandledrejection", (event) => {
+      window.__docErrors.push(String(event.reason || "unhandled rejection"));
+    });
+  </script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cinematography IR · 架构总览</title>
+<style>
+  :root {
+    --bg: #fbfcfd;
+    --fg: #1a1f2e;
+    --muted: #5b6475;
+    --border: #e3e8ef;
+    --accent: #2563eb;
+    --accent-soft: #dbeafe;
+    --accent-deep: #1d4ed8;
+    --layer1: #eff6ff;
+    --layer2: #dcfce7;
+    --layer3: #fef3c7;
+    --layer4: #fce7f3;
+    --layer5: #ede9fe;
+    --layer6: #ffedd5;
+    --success: #059669;
+    --warning: #d97706;
+    --error: #dc2626;
+    --code-bg: #f1f5f9;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.05);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+  header.hero {
+    text-align: center;
+    margin-bottom: 56px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+  .badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #7c3aed 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  h2 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 48px 0 20px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent-soft);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2::before {
+    content: '';
+    width: 4px;
+    height: 22px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+  h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 20px 0 10px;
+    color: var(--fg);
+  }
+  p { margin-bottom: 12px; color: #2a3140; }
+  .lead {
+    font-size: 16px;
+    color: var(--muted);
+    margin-bottom: 24px;
+  }
+
+  /* Feature grid */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .feature-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+  }
+  .feature-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: #cbd5e1;
+  }
+  .feature-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin-bottom: 12px;
+    font-weight: 700;
+  }
+  .feature-card h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .feature-card p {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin-bottom: 0;
+    line-height: 1.55;
+  }
+
+  /* Architecture diagram container */
+  .arch-diagram {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 24px;
+    box-shadow: var(--shadow-md);
+    margin: 24px 0 32px;
+    overflow-x: auto;
+  }
+  .arch-diagram svg {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+  }
+
+  /* Layer blocks in diagram */
+  .layer-box {
+    transition: all 0.3s ease;
+    cursor: default;
+  }
+  .layer-box:hover rect {
+    filter: brightness(0.96);
+    stroke-width: 2;
+  }
+  .flow-arrow {
+    opacity: 0;
+    transform-origin: center;
+  }
+  .flow-arrow.animate {
+    animation: arrowFade 1.6s ease-in-out forwards;
+  }
+  @keyframes arrowFade {
+    0% { opacity: 0; }
+    30% { opacity: 1; }
+    100% { opacity: 0.7; }
+  }
+  .module-pulse {
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  /* Walkthrough */
+  .walkthrough {
+    background: linear-gradient(135deg, #f8fafc 0%, #f0f4f8 100%);
+    border-radius: 12px;
+    padding: 28px;
+    margin: 20px 0;
+    border-left: 4px solid var(--accent);
+  }
+  .walkthrough h3 { margin-top: 0; color: var(--accent-deep); }
+  .walkthrough ol {
+    padding-left: 20px;
+    counter-reset: step;
+    list-style: none;
+  }
+  .walkthrough li {
+    counter-increment: step;
+    margin-bottom: 14px;
+    padding-left: 8px;
+    position: relative;
+  }
+  .walkthrough li::before {
+    content: counter(step);
+    position: absolute;
+    left: -28px;
+    top: 2px;
+    width: 22px;
+    height: 22px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Modules */
+  .module-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .module-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+  }
+  .module-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .module-tag {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+  .module-card h4 {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .module-card p {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .module-card ul {
+    list-style: none;
+    padding-left: 0;
+  }
+  .module-card li {
+    font-size: 13px;
+    color: #374151;
+    padding: 3px 0 3px 16px;
+    position: relative;
+  }
+  .module-card li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* CLI section */
+  .cli-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .cli-item {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 13.5px;
+  }
+  .cli-item code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--accent-deep);
+    font-weight: 600;
+  }
+  .cli-item span {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+
+  /* Validation rules */
+  .rules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+    margin: 16px 0;
+  }
+  .rule-group {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .rule-group h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .rule-group .severity-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .severity-error { background: var(--error); }
+  .severity-warning { background: var(--warning); }
+  .rule-group ul { list-style: none; padding-left: 0; }
+  .rule-group li {
+    font-size: 12.5px;
+    color: #374151;
+    padding: 3px 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  /* Data flow */
+  .dataflow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 20px 0;
+    padding: 20px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .data-step {
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .data-arrow {
+    color: var(--muted);
+    font-size: 16px;
+    font-weight: 300;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 640px) {
+    .container { padding: 24px 16px 48px; }
+    h1 { font-size: 28px; }
+    h2 { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="hero">
+    <div class="badge">RUST · YAML/JSON · CINEMATOGRAPHY IR</div>
+    <h1>Cinematography IR</h1>
+    <p class="subtitle">面向电影摄影规划、自动分镜、虚拟制片与 Agent 编排的<strong>分层中间表示</strong>。保存意图、空间、约束与执行参数，而非把美学简化为公式。</p>
+  </header>
+
+  <h2>产品定位</h2>
+  <p class="lead">
+    Cinematography IR（<code>cinematography-ir</code>）是一套用 Rust 实现的电影摄影中间表示与静态分析工具链。
+    它不做物理渲染，也不做几何求解——而是把<strong>戏剧意图、场面调度、镜头设计、相机程序、连续性约束</strong>五层信息结构化，
+    供人工与 Agent 审查、修改、编译和比较镜头方案。
+  </p>
+  <p>
+    项目同时提供完整的<strong>中文 mdBook 摄影教材</strong>（14 章：从成像原理、景别构图到连续性分析与 IR 架构），
+    以及 <code>cine-ir</code> 命令行工具，用于验证、分析、检视、归一化和 Schema 生成。
+  </p>
+
+  <div class="features">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#dbeafe;color:#1d4ed8;">IR</div>
+      <h4>分层 IR 数据模型</h4>
+      <p>从叙事意图到相机参数的六层结构，保留"为什么这样拍"的语义，不丢失高层意图。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#dcfce7;color:#15803d;">✓</div>
+      <h4>结构与语义验证</h4>
+      <p>40+ 条诊断规则：ID 唯一性、引用完整性、数值合法性、时间线重叠、运镜越界等。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#fef3c7;color:#a16207;">↔</div>
+      <h4>连续性分析</h4>
+      <p>180° 轴线、银幕方向、互反视线、30° 小角度切换——可声明例外桥接，非艺术禁令。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#fce7f3;color:#be185d;">📘</div>
+      <h4>中文摄影教材</h4>
+      <p>14 章 mdBook + 单文件版，覆盖景别、构图、运镜、灯光、Coverage 与视觉叙事。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#ede9fe;color:#6d28d9;">⚙</div>
+      <h4>cine-ir CLI</h4>
+      <p>validate / analyze / inspect / normalize / schema 五个子命令，支持 JSON 机器可读输出。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#ffedd5;color:#c2410c;">🔌</div>
+      <h4>Backend 边界清晰</h4>
+      <p>核心 IR 与 compiler/solver/backend 解耦，预留 Blender、Unreal、Three.js、USD 适配接口。</p>
+    </div>
+  </div>
+
+  <h2>分层架构图</h2>
+  <p class="lead">六层自顶向下：高层语义逐步编译为低层相机参数，每层均可独立审查与交换。</p>
+
+  <div class="arch-diagram" id="archDiagram">
+    <svg viewBox="0 0 780 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cinematography IR 六层架构图">
+      <defs>
+        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#dbeafe;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#bfdbfe;stop-opacity:1" />
+        </linearGradient>
+        <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#dcfce7;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#bbf7d0;stop-opacity:1" />
+        </linearGradient>
+        <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#fef3c7;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#fde68a;stop-opacity:1" />
+        </linearGradient>
+        <linearGradient id="grad4" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#fce7f3;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#fbcfe8;stop-opacity:1" />
+        </linearGradient>
+        <linearGradient id="grad5" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#ede9fe;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#ddd6fe;stop-opacity:1" />
+        </linearGradient>
+        <linearGradient id="grad6" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#ffedd5;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#fed7aa;stop-opacity:1" />
+        </linearGradient>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+        </marker>
+      </defs>
+
+      <!-- Layer 1: Narrative Intent -->
+      <g class="layer-box" onclick="highlightLayer(0)">
+        <rect x="40" y="20" width="700" height="65" rx="10" fill="url(#grad1)" stroke="#93c5fd" stroke-width="1.5"/>
+        <text x="60" y="48" font-size="15" font-weight="700" fill="#1e40af">① 叙事意图层 · Narrative Intent</text>
+        <text x="60" y="70" font-size="12.5" fill="#1e3a8a">戏剧问题 · 情绪节拍 · 主题 · 观众状态 · Emotion Arc (valence/arousal)</text>
+      </g>
+
+      <!-- Arrow 1 -->
+      <g class="flow-arrow" id="arrow1">
+        <line x1="390" y1="85" x2="390" y2="103" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
+      </g>
+
+      <!-- Layer 2: Staging & Blocking -->
+      <g class="layer-box" onclick="highlightLayer(1)">
+        <rect x="40" y="108" width="700" height="65" rx="10" fill="url(#grad2)" stroke="#86efac" stroke-width="1.5"/>
+        <text x="60" y="136" font-size="15" font-weight="700" fill="#166534">② 场面调度层 · Staging &amp; Blocking</text>
+        <text x="60" y="158" font-size="12.5" fill="#14532d">人物/道具 · 空间标记 · 视线目标 · 动作轨迹 · 灯光布置 · Beat 节拍</text>
+      </g>
+
+      <!-- Arrow 2 -->
+      <g class="flow-arrow" id="arrow2">
+        <line x1="390" y1="173" x2="390" y2="191" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
+      </g>
+
+      <!-- Layer 3: Shot Design -->
+      <g class="layer-box" onclick="highlightLayer(2)">
+        <rect x="40" y="196" width="700" height="65" rx="10" fill="url(#grad3)" stroke="#fcd34d" stroke-width="1.5"/>
+        <text x="60" y="224" font-size="15" font-weight="700" fill="#a16207">③ 镜头设计层 · Shot Design</text>
+        <text x="60" y="246" font-size="12.5" fill="#854d0e">景别 · 机位角度 · 构图策略 · Coverage 角色 · 叙事目的 · 深度分层</text>
+      </g>
+
+      <!-- Arrow 3 -->
+      <g class="flow-arrow" id="arrow3">
+        <line x1="390" y1="261" x2="390" y2="279" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
+      </g>
+
+      <!-- Layer 4: Camera Program -->
+      <g class="layer-box" onclick="highlightLayer(3)">
+        <rect x="40" y="284" width="700" height="65" rx="10" fill="url(#grad4)" stroke="#f9a8d4" stroke-width="1.5"/>
+        <text x="60" y="312" font-size="15" font-weight="700" fill="#be185d">④ 相机程序层 · Camera Program</text>
+        <text x="60" y="334" font-size="12.5" fill="#9d174d">位姿 · 焦距/光圈 · 对焦 · 曝光 · 18 种运镜操作 · 缓动曲线 · 灯光引用</text>
+      </g>
+
+      <!-- Arrow 4 -->
+      <g class="flow-arrow" id="arrow4">
+        <line x1="390" y1="349" x2="390" y2="367" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
+      </g>
+
+      <!-- Layer 5: Continuity Constraints -->
+      <g class="layer-box" onclick="highlightLayer(4)">
+        <rect x="40" y="372" width="700" height="65" rx="10" fill="url(#grad5)" stroke="#c4b5fd" stroke-width="1.5"/>
+        <text x="60" y="400" font-size="15" font-weight="700" fill="#6d28d9">⑤ 连续性约束层 · Continuity Constraints</text>
+        <text x="60" y="422" font-size="12.5" fill="#5b21b6">180° 轴线侧 · 银幕方向 · 互反视线 · 30° 规则 · 桥接例外 · 空间重置</text>
+      </g>
+
+      <!-- Arrow 5 -->
+      <g class="flow-arrow" id="arrow5">
+        <line x1="390" y1="437" x2="390" y2="455" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
+      </g>
+
+      <!-- Layer 6: Backend / Renderer -->
+      <g class="layer-box" onclick="highlightLayer(5)">
+        <rect x="40" y="460" width="700" height="50" rx="10" fill="url(#grad6)" stroke="#fdba74" stroke-width="1.5"/>
+        <text x="60" y="490" font-size="15" font-weight="700" fill="#c2410c">⑥ 渲染适配层 · Renderer / DCC / Virtual Production Adapter</text>
+      </g>
+
+      <!-- Side label: IR Core -->
+      <g>
+        <rect x="740" y="110" width="32" height="330" rx="6" fill="#2563eb" opacity="0.1"/>
+        <text x="756" y="275" font-size="12" font-weight="600" fill="#2563eb" transform="rotate(90 756 275)" text-anchor="middle">IR CORE · 模型 + 验证 + 分析</text>
+      </g>
+    </svg>
+  </div>
+
+  <h2>主走查：一个 YAML 如何被处理</h2>
+  <p class="lead">以 <code>examples/dialogue.yaml</code>（审讯室三镜头对话）为例，走查完整处理链路。</p>
+
+  <div class="dataflow">
+    <div class="data-step">YAML / JSON 输入</div>
+    <span class="data-arrow">→</span>
+    <div class="data-step">io::load_project</div>
+    <span class="data-arrow">→</span>
+    <div class="data-step">serde 反序列化</div>
+    <span class="data-arrow">→</span>
+    <div class="data-step">CineProject 模型</div>
+    <span class="data-arrow">→</span>
+    <div class="data-step">validate_project</div>
+    <span class="data-arrow">→</span>
+    <div class="data-step">analyze_continuity</div>
+    <span class="data-arrow">→</span>
+    <div class="data-step">ValidationReport</div>
+  </div>
+
+  <div class="walkthrough">
+    <h3>验证与分析步骤</h3>
+    <ol>
+      <li><strong>加载与反序列化：</strong><code>io::load_project</code> 依据扩展名选择 YAML/JSON 解析器，<code>deny_unknown_fields</code> 拒绝拼写错误（如 <code>focal_lenght_mm</code>）。</li>
+      <li><strong>项目级校验：</strong>检查 <code>schema_version</code>、项目 ID 非空、帧率合法、至少一个场景、场景 ID 唯一。</li>
+      <li><strong>场景级校验：</strong>遍历 subjects / markers / axes / beats / lighting_setups，校验 ID 唯一、引用存在、数值有限、关键帧严格递增。</li>
+      <li><strong>镜头时间线校验：</strong>按 start 排序后检查重叠（error）与间隙（warning），首帧是否从 0 开始，尾帧是否覆盖场景时长。</li>
+      <li><strong>单镜头校验：</strong>景别、构图、相机状态（镜头/对焦/曝光）、运镜操作范围（镜头局部半开区间）、连续性注解引用。</li>
+      <li><strong>连续性分析：</strong>相邻镜头对检查 180° 轴线翻转、银幕方向反转、30° 小角度切换、互反视线同向——若声明 bridge / spatial_reset / jump_cut 则豁免。</li>
+      <li><strong>诊断输出：</strong>文本或 JSON 格式，含错误码、路径、消息与修复 hint；<code>--deny-warnings</code> 可将 warning 提升为非零退出码。</li>
+    </ol>
+  </div>
+
+  <h2>模块说明</h2>
+
+  <div class="module-grid">
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-tag">src/model.rs</span>
+        <h4>数据模型</h4>
+      </div>
+      <p>~880 行，核心 IR 类型定义。<code>CineProject</code> 为根，向下包含 Scene、Shot、CameraPlan、ContinuityAnnotations 等。</p>
+      <ul>
+        <li><code>CineProject</code> / <code>Scene</code> / <code>Shot</code> 三层容器</li>
+        <li><code>NarrativeIntent</code>：戏剧问题 + 情绪弧</li>
+        <li><code>Subject</code> / <code>Marker</code> / <code>BlockingTrack</code></li>
+        <li><code>Framing</code> + <code>Composition</code>（9 种构图策略）</li>
+        <li><code>CameraOperation</code>（18 种运镜枚举）</li>
+        <li><code>LightingSetup</code> + <code>LightSource</code>（8 种光源角色）</li>
+        <li><code>TargetRef</code>：Subject / Marker / Point 三态</li>
+      </ul>
+    </div>
+
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-tag">src/validate.rs</span>
+        <h4>结构验证</h4>
+      </div>
+      <p>~990 行，结构性与语义性验证。返回 <code>ValidationReport</code>，区分 error 与 warning。</p>
+      <ul>
+        <li>ID 唯一性（场景/人物/标记/轴线/镜头/灯光）</li>
+        <li>引用完整性（subject/marker/axis/lighting）</li>
+        <li>数值合法性（有限、正、归一化、快门角 ≤360°）</li>
+        <li>时间线有效性（半开区间、运镜不越出镜头）</li>
+        <li>编辑时间线（重叠=错误、间隙=警告）</li>
+        <li>运镜操作参数校验（18 种逐分支）</li>
+      </ul>
+    </div>
+
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-tag">src/analyze.rs</span>
+        <h4>连续性分析</h4>
+      </div>
+      <p>~215 行，跨镜头连续性启发式检查。4 条规则 + 例外桥接机制。</p>
+      <ul>
+        <li><code>CONTINUITY_AXIS_CROSS</code>：轴线侧翻转</li>
+        <li><code>CONTINUITY_SCREEN_DIRECTION_FLIP</code>：银幕方向反转</li>
+        <li><code>CONTINUITY_SMALL_ANGLE_CUT</code>：<30° 同景别切换</li>
+        <li><code>CONTINUITY_EYELINE_MISMATCH</code>：互反视线同向</li>
+        <li>豁免：bridge / spatial_reset / direction_change_visible / jump_cut</li>
+      </ul>
+    </div>
+
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-tag">src/diagnostic.rs</span>
+        <h4>诊断系统</h4>
+      </div>
+      <p>~95 行，统一诊断结构。可序列化为 JSON 供机器消费。</p>
+      <ul>
+        <li><code>Diagnostic</code>：code / severity / path / message / hint</li>
+        <li><code>Severity</code>：Error / Warning 两档</li>
+        <li><code>ValidationReport</code>：集合 + 计数 + 扩展</li>
+        <li>支持 schemars 生成 JSON Schema</li>
+      </ul>
+    </div>
+
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-tag">src/io.rs</span>
+        <h4>输入输出</h4>
+      </div>
+      <p>~35 行，基于扩展名的格式分派。</p>
+      <ul>
+        <li><code>load_project</code>：.yaml/.yml/.json 自动识别</li>
+        <li><code>save_project_json</code>：pretty-printed JSON</li>
+        <li>统一 <code>anyhow::Result</code> 错误链</li>
+      </ul>
+    </div>
+
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-tag">src/report.rs</span>
+        <h4>摘要渲染</h4>
+      </div>
+      <p>~95 行，人类可读的镜头清单输出。</p>
+      <ul>
+        <li>项目 / 场景 / 镜头三级摘要</li>
+        <li>帧率换算秒数</li>
+        <li>Coverage 角色 + 景别 + 器材 + 运镜列表</li>
+        <li>供 <code>cine-ir inspect</code> 使用</li>
+      </ul>
+    </div>
+
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-tag">src/main.rs</span>
+        <h4>CLI 入口</h4>
+      </div>
+      <p>~140 行，<code>cine-ir</code> 二进制，基于 clap derive。</p>
+      <ul>
+        <li><code>validate</code>：全量验证 + 连续性分析</li>
+        <li><code>analyze</code>：仅连续性分析</li>
+        <li><code>inspect</code>：打印人类可读摘要</li>
+        <li><code>normalize</code>：YAML→规范化 JSON</li>
+        <li><code>schema</code>：从模型生成 JSON Schema</li>
+      </ul>
+    </div>
+
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-tag">docs/</span>
+        <h4>中文摄影教材</h4>
+      </div>
+      <p>14 章 mdBook + 单文件版 <code>CINEMATOGRAPHY_GUIDE.md</code>。</p>
+      <ul>
+        <li>成像原理、景别、镜头与对焦、构图</li>
+        <li>运镜、场面调度、连续性、灯光色彩</li>
+        <li>Coverage 与剪辑、视觉叙事</li>
+        <li>IR 架构、IR 参考、验证规则</li>
+        <li>Agent 编译器章节（前瞻）</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>cine-ir CLI 子命令</h2>
+
+  <div class="cli-grid">
+    <div class="cli-item">
+      <code>validate</code>
+      <span>结构 + 语义 + 连续性全量验证；--json / --deny-warnings</span>
+    </div>
+    <div class="cli-item">
+      <code>analyze</code>
+      <span>仅跨镜头连续性分析；快速检查轴线/视线/方向</span>
+    </div>
+    <div class="cli-item">
+      <code>inspect</code>
+      <span>打印紧凑的镜头计划摘要；场景时长 + 运镜一览</span>
+    </div>
+    <div class="cli-item">
+      <code>normalize</code>
+      <span>YAML / JSON → 规范化 pretty JSON；-o 指定输出</span>
+    </div>
+    <div class="cli-item">
+      <code>schema</code>
+      <span>从 Rust 模型生成 JSON Schema；schemars 驱动</span>
+    </div>
+  </div>
+
+  <h2>验证规则全景</h2>
+  <p class="lead">40+ 条诊断，分 Error（阻断性）和 Warning（建议性）。所有规则均附修复 hint。</p>
+
+  <div class="rules-grid">
+    <div class="rule-group">
+      <h4><span class="severity-dot severity-error"></span> ID 与引用</h4>
+      <ul>
+        <li>PROJECT_ID_EMPTY</li>
+        <li>SCENE_ID_EMPTY</li>
+        <li>ID_EMPTY / ID_DUPLICATE</li>
+        <li>TARGET_SUBJECT_UNKNOWN</li>
+        <li>TARGET_MARKER_UNKNOWN</li>
+        <li>FRAMING_SUBJECT_UNKNOWN</li>
+        <li>CONTINUITY_AXIS_UNKNOWN</li>
+        <li>LIGHTING_SETUP_UNKNOWN</li>
+        <li>BLOCKING_SUBJECT_UNKNOWN</li>
+        <li>BEAT_SUBJECT_UNKNOWN</li>
+      </ul>
+    </div>
+    <div class="rule-group">
+      <h4><span class="severity-dot severity-error"></span> 数值与物理</h4>
+      <ul>
+        <li>FRAME_RATE_INVALID</li>
+        <li>VECTOR_NOT_FINITE</li>
+        <li>ROTATION_NOT_FINITE</li>
+        <li>LENS_FOCAL_LENGTH_INVALID</li>
+        <li>LENS_APERTURE_INVALID</li>
+        <li>EXPOSURE_ISO_INVALID</li>
+        <li>EXPOSURE_SHUTTER_ANGLE_INVALID</li>
+        <li>EXPOSURE_WHITE_BALANCE_INVALID</li>
+        <li>SUBJECT_DIMENSIONS_INVALID</li>
+        <li>LIGHT_INTENSITY_INVALID</li>
+      </ul>
+    </div>
+    <div class="rule-group">
+      <h4><span class="severity-dot severity-error"></span> 时间线</h4>
+      <ul>
+        <li>FRAME_RANGE_EMPTY_OR_REVERSED</li>
+        <li>FRAME_RANGE_OUT_OF_SCENE</li>
+        <li>EDIT_TIMELINE_OVERLAP</li>
+        <li>CAMERA_OPERATION_RANGE_INVALID</li>
+        <li>BLOCKING_FRAME_OUT_OF_RANGE</li>
+        <li>BLOCKING_FRAMES_NOT_STRICTLY_INCREASING</li>
+        <li>EMOTIONAL_BEAT_OUT_OF_RANGE</li>
+        <li>SCENE_DURATION_INVALID</li>
+        <li>SCENE_HAS_NO_SHOTS</li>
+      </ul>
+    </div>
+    <div class="rule-group">
+      <h4><span class="severity-dot severity-warning"></span> 连续性</h4>
+      <ul>
+        <li>CONTINUITY_AXIS_CROSS</li>
+        <li>CONTINUITY_SCREEN_DIRECTION_FLIP</li>
+        <li>CONTINUITY_SMALL_ANGLE_CUT</li>
+        <li>CONTINUITY_EYELINE_MISMATCH</li>
+        <li>CAMERA_OPERATIONS_UNSORTED</li>
+        <li>SHOT_PURPOSE_MISSING</li>
+        <li>BLOCKING_TRACK_EMPTY</li>
+        <li>EDIT_TIMELINE_GAP</li>
+        <li>EDIT_TIMELINE_START_GAP</li>
+        <li>EDIT_TIMELINE_END_GAP</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>设计原则与边界</h2>
+  <div class="walkthrough">
+    <h3>核心理念</h3>
+    <ol>
+      <li><strong>语义优先：</strong>不只存 position(t)，还要存"为什么移动"——运镜是显式操作对象（dolly/zoom/orbit/...），带叙事目的和 Coverage 角色。</li>
+      <li><strong>显式例外：</strong>连续性是启发式诊断而非艺术禁令。<code>bridge</code>、<code>spatial_reset</code>、<code>direction_change_visible</code>、<code>jump_cut</code> 用于声明合理越轴。</li>
+      <li><strong>严格字段：</strong><code>deny_unknown_fields</code> 全局开启，拼写错误直接失败，不会静默降级为默认值。</li>
+      <li><strong>半开区间：</strong>所有时间范围统一 <code>[start, end)</code>，镜头运镜使用镜头局部帧坐标。</li>
+      <li><strong>坐标系自描述：</strong>文件自带单位、手性、上轴、前轴定义，适配器不得假设 Blender/Unreal/Three.js 约定一致。</li>
+      <li><strong>核心与后端解耦：</strong>IR 只做交换与静态分析，几何求解/物理渲染/烘焙轨迹属于 compiler/solver/backend 层。</li>
+    </ol>
+  </div>
+
+  <h2>示例 YAML 速览</h2>
+  <p class="lead">三镜头对话覆盖（master → Alice CU → Bob CU），含 180° 轴线观察与互反视线注解。</p>
+
+  <div class="arch-diagram" style="padding: 20px 24px; font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.7; color: #1e293b;">
+<pre style="margin:0; white-space: pre-wrap;">schema_version: "0.1"
+id: interview_scene
+title: "审讯室：三镜头对话覆盖"
+frame_rate: { numerator: 24, denominator: 1 }
+scenes:
+  - id: interrogation
+    duration_frames: 240
+    narrative:
+      dramatic_question: "Alice 是否会承认她拿走了钥匙？"
+      emotional_arc: [{ frame: 0, label: "克制" }, { frame: 160, label: "逼问" }]
+    subjects: [alice, bob, table]        # 人物 + 道具
+    axes: [dialogue_axis: alice → bob]  # 关系轴线
+    blocking:                           # 两人物各自动作轨迹
+    beats: [establish_power, alice_hesitates, bob_pressures]  # 戏剧节拍
+    lighting_setups: [cold_interrogation]  # 冷色顶灯 + 弱补光
+    shots:
+      - master_two_shot [0..80)    # 全景：建立空间，对称构图，tripod
+      - alice_close_up [80..160)   # 特写：三分法，dolly 推进 0.35m
+      - bob_close_up [160..240)    # 反打：低角度，施压感
+    <span style="color: #64748b;"># 连续性：三镜均在轴线同侧(positive)，视线互反，无越轴</span></pre>
+  </div>
+
+  <footer>
+    <p>Cinematography IR · v0.1.0 · MIT License · Rust 2021 Edition</p>
+    <p style="margin-top:4px;">文档生成时间：2026-08-23</p>
+  </footer>
+
+</div>
+
+<script>
+  // Animate arrows sequentially on load
+  document.addEventListener('DOMContentLoaded', function() {
+    const arrows = ['arrow1', 'arrow2', 'arrow3', 'arrow4', 'arrow5'];
+    arrows.forEach((id, i) => {
+      setTimeout(() => {
+        document.getElementById(id).classList.add('animate');
+      }, 200 + i * 250);
+    });
+
+    // Replay animation on diagram click
+    const diagram = document.getElementById('archDiagram');
+    diagram.addEventListener('click', function() {
+      arrows.forEach((id, i) => {
+        const el = document.getElementById(id);
+        el.classList.remove('animate');
+        setTimeout(() => el.classList.add('animate'), 50 + i * 100);
+      });
+    });
+  });
+
+  function highlightLayer(index) {
+    const boxes = document.querySelectorAll('.layer-box');
+    boxes.forEach((box, i) => {
+      const rect = box.querySelector('rect');
+      if (i === index) {
+        rect.style.strokeWidth = '3';
+        rect.style.filter = 'brightness(0.97)';
+      } else {
+        rect.style.strokeWidth = '1.5';
+        rect.style.filter = 'none';
+      }
+    });
+  }
+</script>
+<script data-code2arch-svg-text-floor>
+    (() => {
+      // Leave sub-pixel headroom above the 12px hard gate. Chromium rounds
+      // glyph boxes differently across fonts, so a nominal 12.2px target can
+      // still render as 11.98px and fail the geometry audit.
+      const minimumHeight = 12.8;
+      const repair = () => {
+        document.querySelectorAll("svg text").forEach((label) => {
+          const box = label.getBoundingClientRect();
+          if (box.height <= 0 || box.height >= minimumHeight) return;
+          const fontSize = parseFloat(getComputedStyle(label).fontSize);
+          if (!Number.isFinite(fontSize) || fontSize <= 0) return;
+          const next = Math.ceil(fontSize * minimumHeight / box.height * 10) / 10;
+          label.style.fontSize = `${next}px`;
+        });
+      };
+      repair();
+      repair();
+      requestAnimationFrame(repair);
+      setTimeout(repair, 250);
+      setTimeout(repair, 750);
+      setTimeout(repair, 1500);
+    })();
+  </script>
+  <script data-code2arch-runtime-ready>
+    window.__docReady = true;
+  </script>
+</body>
+</html>

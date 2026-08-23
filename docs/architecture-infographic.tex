@@ -1,0 +1,205 @@
+\documentclass[tikz,border=12pt,12pt]{standalone}
+\usepackage{ctex}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning, calc, arrows.meta, shadows, shapes.geometric, shapes.misc, fit, backgrounds, matrix}
+
+% Color palette
+\definecolor{layer1}{RGB}{219,234,254}
+\definecolor{layer1d}{RGB}{59,130,246}
+\definecolor{layer2}{RGB}{220,252,231}
+\definecolor{layer2d}{RGB}{34,197,94}
+\definecolor{layer3}{RGB}{254,243,199}
+\definecolor{layer3d}{RGB}{234,179,8}
+\definecolor{layer4}{RGB}{252,231,243}
+\definecolor{layer4d}{RGB}{236,72,153}
+\definecolor{layer5}{RGB}{237,233,254}
+\definecolor{layer5d}{RGB}{139,92,246}
+\definecolor{layer6}{RGB}{255,237,213}
+\definecolor{layer6d}{RGB}{249,115,22}
+\definecolor{accent}{RGB}{37,99,235}
+\definecolor{accentdeep}{RGB}{29,78,216}
+\definecolor{bg}{RGB}{251,252,253}
+\definecolor{textmuted}{RGB}{91,100,117}
+\definecolor{borderc}{RGB}{226,232,240}
+
+\begin{document}
+\begin{tikzpicture}[
+    node distance=0.9cm,
+    font=\sffamily,
+    every node/.style={inner sep=0pt, outer sep=0pt},
+    layerbox/.style={
+        rectangle, rounded corners=8pt,
+        minimum width=14cm, minimum height=1.3cm,
+        draw=#1, thick,
+        fill=#1!25,
+        drop shadow={shadow xshift=2pt, shadow yshift=-2pt, fill=gray!25},
+        align=left,
+    },
+    layertitle/.style={
+        font=\bfseries\large,
+        text=#1,
+        yshift=6pt,
+    },
+    layersub/.style={
+        font=\small,
+        text=gray!70,
+        yshift=-10pt,
+    },
+    arrowdown/.style={
+        -{Stealth[scale=1.2]},
+        thick,
+        draw=gray!50,
+    },
+]
+
+% Background
+\node [rectangle, fill=bg, minimum width=17cm, minimum height=21cm, rounded corners=12pt, draw=borderc, very thick] at (0,0) {};
+
+% Title
+\node [font=\bfseries\Huge, text=accentdeep] at (0, 9.2) {Cinematography IR};
+\node [font=\large, text=textmuted] at (0, 8.5) {电影摄影分层中间表示 · 架构信息图};
+\draw [thick, draw=accent!60, rounded corners=2pt] (-4.5, 8.1) -- (4.5, 8.1);
+
+% ========== Layer 1: Narrative Intent ==========
+\node [layerbox=layer1d, minimum height=1.5cm] (l1) at (0, 6.8) {};
+\node [layertitle=blue!80, anchor=west] at ($(l1.west)+(10pt,0)$) {\textcircled{1} \enspace 叙事意图层 \quad Narrative Intent};
+\node [layersub, anchor=west] at ($(l1.west)+(10pt,0)$) {戏剧问题 · 情绪节拍 · 主题 · 观众状态 · Emotional Arc};
+
+% Arrow 1
+\draw [arrowdown] (l1.south) -- ++(0, -0.55);
+
+% ========== Layer 2: Staging & Blocking ==========
+\node [layerbox=layer2d, minimum height=1.5cm] (l2) at (0, 4.95) {};
+\node [layertitle=green!80, anchor=west] at ($(l2.west)+(10pt,0)$) {\textcircled{2} \enspace 场面调度层 \quad Staging \& Blocking};
+\node [layersub, anchor=west] at ($(l2.west)+(10pt,0)$) {人物/道具 · 空间标记 · 视线 · 动作轨迹 · 灯光布置 · Beat};
+
+% Arrow 2
+\draw [arrowdown] (l2.south) -- ++(0, -0.55);
+
+% ========== Layer 3: Shot Design ==========
+\node [layerbox=layer3d, minimum height=1.5cm] (l3) at (0, 3.1) {};
+\node [layertitle=yellow!80!orange, anchor=west] at ($(l3.west)+(10pt,0)$) {\textcircled{3} \enspace 镜头设计层 \quad Shot Design};
+\node [layersub, anchor=west] at ($(l3.west)+(10pt,0)$) {景别 · 机位角度 · 构图策略 · Coverage 角色 · 叙事目的 · 深度分层};
+
+% Arrow 3
+\draw [arrowdown] (l3.south) -- ++(0, -0.55);
+
+% ========== Layer 4: Camera Program ==========
+\node [layerbox=layer4d, minimum height=1.5cm] (l4) at (0, 1.25) {};
+\node [layertitle=magenta!80, anchor=west] at ($(l4.west)+(10pt,0)$) {\textcircled{4} \enspace 相机程序层 \quad Camera Program};
+\node [layersub, anchor=west] at ($(l4.west)+(10pt,0)$) {位姿 · 焦距/光圈 · 对焦 · 曝光 · 18种运镜 · 缓动曲线 · 灯光引用};
+
+% Arrow 4
+\draw [arrowdown] (l4.south) -- ++(0, -0.55);
+
+% ========== Layer 5: Continuity ==========
+\node [layerbox=layer5d, minimum height=1.5cm] (l5) at (0, -0.6) {};
+\node [layertitle=violet!80, anchor=west] at ($(l5.west)+(10pt,0)$) {\textcircled{5} \enspace 连续性约束层 \quad Continuity Constraints};
+\node [layersub, anchor=west] at ($(l5.west)+(10pt,0)$) {180°轴线 · 银幕方向 · 互反视线 · 30°规则 · 桥接例外 · 空间重置};
+
+% Arrow 5
+\draw [arrowdown] (l5.south) -- ++(0, -0.55);
+
+% ========== Layer 6: Backend ==========
+\node [layerbox=layer6d, minimum height=1.2cm] (l6) at (0, -2.2) {};
+\node [layertitle=orange!80, anchor=west] at ($(l6.west)+(10pt,0)$) {\textcircled{6} \enspace 渲染适配层 \quad Renderer / DCC / VP Adapter};
+\node [layersub, anchor=west] at ($(l6.west)+(10pt,0)$) {Blender · Unreal · Three.js · USD · 虚拟制片};
+
+% ========== Side panel: IR Core label ==========
+\begin{scope}[on background layer]
+\node [rectangle, fill=accent!10, minimum width=0.7cm, minimum height=9.2cm, rounded corners=4pt]
+  at ($(l1.east)+(0.8cm, -2.9cm)$) (corelabel) {};
+\node [rotate=90, font=\bfseries\small, text=accentdeep] at (corelabel) {IR CORE · 模型 + 验证 + 分析};
+\end{scope}
+
+% ========== Bottom section: modules & CLI ==========
+\draw [thick, draw=gray!30, dashed] (-7.2, -3.2) -- (7.2, -3.2);
+
+\node [font=\bfseries\Large, text=accentdeep] at (0, -4.0) {核心模块};
+
+% Module cards row
+\tikzset{modulecard/.style={
+    rectangle, rounded corners=8pt,
+    minimum width=3.3cm, minimum height=1.6cm,
+    draw=borderc, thick,
+    fill=white,
+    drop shadow={shadow xshift=1.5pt, shadow yshift=-1.5pt, fill=gray!20},
+    align=center,
+}}
+
+\node [modulecard] (m1) at (-5.2, -5.3) {
+    \textbf{\textcolor{blue!70}{model.rs}}\\
+    \small \textcolor{gray!70}{IR 数据模型}\\
+    \small \textcolor{gray!70}{~880 行·25+ 类型}
+};
+\node [modulecard] (m2) at (-1.7, -5.3) {
+    \textbf{\textcolor{green!70}{validate.rs}}\\
+    \small \textcolor{gray!70}{结构语义验证}\\
+    \small \textcolor{gray!70}{~990 行·40+ 规则}
+};
+\node [modulecard] (m3) at (1.7, -5.3) {
+    \textbf{\textcolor{violet!70}{analyze.rs}}\\
+    \small \textcolor{gray!70}{连续性分析}\\
+    \small \textcolor{gray!70}{~215 行·4 条规则}
+};
+\node [modulecard] (m4) at (5.2, -5.3) {
+    \textbf{\textcolor{orange!70}{diagnostic.rs}}\\
+    \small \textcolor{gray!70}{诊断系统}\\
+    \small \textcolor{gray!70}{~95 行·JSON 可序列化}
+};
+
+% Second row
+\node [modulecard] (m5) at (-5.2, -7.2) {
+    \textbf{\textcolor{teal!70}{io.rs}}\\
+    \small \textcolor{gray!70}{YAML / JSON 加载}\\
+    \small \textcolor{gray!70}{自动格式分派}
+};
+\node [modulecard] (m6) at (-1.7, -7.2) {
+    \textbf{\textcolor{red!70}{report.rs}}\\
+    \small \textcolor{gray!70}{人类可读摘要}\\
+    \small \textcolor{gray!70}{镜头清单输出}
+};
+\node [modulecard] (m7) at (1.7, -7.2) {
+    \textbf{\textcolor{purple!70}{main.rs}}\\
+    \small \textcolor{gray!70}{cine-ir CLI}\\
+    \small \textcolor{gray!70}{5 个子命令}
+};
+\node [modulecard] (m8) at (5.2, -7.2) {
+    \textbf{\textcolor{cyan!70}{docs/}}\\
+    \small \textcolor{gray!70}{中文摄影教材}\\
+    \small \textcolor{gray!70}{14 章 mdBook}
+};
+
+% Connect layers to module cards
+\draw [dotted, gray!40, thick] (l6.south) -- ++(0, -0.4) -| (m1.north);
+
+% ========== CLI section ==========
+\draw [thick, draw=gray!30, dashed] (-7.2, -8.2) -- (7.2, -8.2);
+
+\node [font=\bfseries\Large, text=accentdeep] at (0, -8.9) {cine-ir CLI};
+
+\tikzset{clichip/.style={
+    rectangle, rounded corners=6pt,
+    minimum width=2.5cm, minimum height=0.9cm,
+    draw=accent!40,
+    fill=accent!10,
+    font=\small\ttfamily,
+    text=accentdeep,
+    align=center,
+}}
+
+\node [clichip] (c1) at (-5.0, -9.9) {validate};
+\node [clichip] (c2) at (-2.5, -9.9) {analyze};
+\node [clichip] (c3) at (0.0, -9.9) {inspect};
+\node [clichip] (c4) at (2.5, -9.9) {normalize};
+\node [clichip] (c5) at (5.0, -9.9) {schema};
+
+\node [font=\small, text=textmuted] at (0, -10.7) {结构验证 · 连续性分析 · 摘要检视 · 格式归一化 · JSON Schema};
+
+% Footer
+\draw [thick, draw=gray!20] (-7.2, -11.3) -- (7.2, -11.3);
+\node [font=\small\ttfamily, text=gray!50] at (0, -11.75) {cinematography-ir v0.1.0 \quad|\quad Rust 2021 \quad|\quad MIT};
+
+\end{tikzpicture}
+\end{document}
