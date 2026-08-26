@@ -57,7 +57,8 @@ cinematography-ir/
 │   ├── dialogue.yaml
 │   ├── intentional_axis_cross.yaml
 │   ├── unsafe_axis_cross.yaml
-│   └── dolly_zoom.yaml
+│   ├── dolly_zoom.yaml
+│   └── jaws_beach_dolly_zoom.yaml  # 8 秒经典镜头研究：主体稳定、背景压缩
 ├── schema/
 ├── profiles/prompt/generic.json  # prompt 方言（IR 枚举 → 摄影词汇）
 ├── assets/fonts/               # PNG 编码内嵌字体（Liberation Sans, OFL）
@@ -109,6 +110,20 @@ cargo run -- view examples/dolly_zoom.yaml --layout animate:12 --format html -o 
 cargo run -- render blender examples/dialogue.yaml --out-dir /tmp/passes --passes depth,normal,id --script-only
 cargo run -- compare examples/dialogue.yaml estimate.json --align similarity
 ```
+
+### 经典镜头基准：《大白鲨》式反向 Dolly Zoom
+
+`examples/jaws_beach_dolly_zoom.yaml` 把《大白鲨》(1975) 海滩镜头抽象成 8 秒、无对白和演员形象的镜头语法测试。结构依据 [American Cinematographer 对该镜头的说明](https://staging.ascmag.com/articles/shot-craft-camera-movement)：相机后退、焦段变长、前景人物尺度保持稳定，背景向人物压缩。
+
+```bash
+cargo run -- validate examples/jaws_beach_dolly_zoom.yaml --deny-warnings
+cargo run -- view examples/jaws_beach_dolly_zoom.yaml --layout animate:12 --format html -o /tmp/jaws-beach.html
+cargo run -- render blender examples/jaws_beach_dolly_zoom.yaml \
+  --out-dir /tmp/jaws-beach --passes beauty --resolution 320x180 --samples 1 \
+  --blender /Applications/Blender.app/Contents/MacOS/Blender
+```
+
+验收判据：0–2 秒建立稳定空间，2–7 秒 dolly-out + zoom-in，7–8 秒停住；Observer 的投影尺度近似不变，两个 background beachgoer 明显向画面边缘扩张。`tests/solve.rs` 对主体尺度、相机距离、焦段方向和背景扩张分别做量化回归。
 
 构建教材：
 

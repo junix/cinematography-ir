@@ -22,10 +22,13 @@ examples:
     cargo run -q -- validate examples/dialogue.yaml --deny-warnings
     cargo run -q -- validate examples/intentional_axis_cross.yaml --deny-warnings
     cargo run -q -- validate examples/dolly_zoom.yaml --deny-warnings
+    cargo run -q -- validate examples/jaws_beach_dolly_zoom.yaml --deny-warnings
     cargo run -q -- analyze examples/unsafe_axis_cross.yaml
     cargo run -q -- solve examples/dolly_zoom.yaml --deny-warnings -o /dev/null
+    cargo run -q -- solve examples/jaws_beach_dolly_zoom.yaml --deny-warnings -o /dev/null
     cargo run -q -- prompt examples/dialogue.yaml > /dev/null
     cargo run -q -- view examples/dialogue.yaml --format ascii --layout strip:v > /dev/null
+    cargo run -q -- view examples/jaws_beach_dolly_zoom.yaml --layout animate:12 --format html -o target/examples/jaws-beach.html
     cargo run -q -- render blender examples/dialogue.yaml --out-dir target/examples/passes --script-only > /dev/null
 
 schema:

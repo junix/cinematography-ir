@@ -1,0 +1,137 @@
+schema_version: "0.1"
+id: jaws_beach_dolly_zoom_study
+title: "《大白鲨》海滩惊觉：反向 Dolly Zoom 研究"
+frame_rate: { numerator: 24, denominator: 1 }
+coordinate_system:
+  units: meters
+  handedness: right
+  up_axis: y
+  forward_axis: negative_z
+metadata:
+  authoring_mode: classic_shot_study
+  source_reference: "Jaws (1975), beach dolly zoom"
+  adaptation_scope: "camera-grammar study without dialogue or actor likeness"
+scenes:
+  - id: beach_realization
+    title: "观察者意识到海中危险"
+    duration_frames: 192
+    narrative:
+      dramatic_question: "观察者何时确认画外发生了危险？"
+      themes: ["警觉", "主观冲击"]
+      desired_audience_state:
+        - "主体尺度近似不变，背景透视向主体压缩"
+        - "从日常观察突然转入主观惊惧"
+      emotional_arc:
+        - { frame: 0, label: "观察", valence: 0.0, arousal: 0.2 }
+        - { frame: 48, label: "确认危险", valence: -0.6, arousal: 0.9 }
+        - { frame: 168, label: "震惊定住", valence: -0.8, arousal: 0.85 }
+    subjects:
+      - id: observer
+        name: Observer
+        kind: character
+        initial_transform:
+          position: { x: 0.0, y: 0.0, z: 0.0 }
+          rotation_deg: { pitch: 0.0, yaw: 180.0, roll: 0.0 }
+        dimensions_m: { x: 0.62, y: 1.4, z: 0.42 }
+      - id: left_beachgoer
+        name: Left beachgoer
+        kind: character
+        initial_transform:
+          position: { x: -2.4, y: 0.0, z: -5.5 }
+          rotation_deg: { pitch: 0.0, yaw: 25.0, roll: 0.0 }
+        dimensions_m: { x: 0.5, y: 1.7, z: 0.36 }
+      - id: right_beachgoer
+        name: Right beachgoer
+        kind: character
+        initial_transform:
+          position: { x: 2.2, y: 0.0, z: -7.5 }
+          rotation_deg: { pitch: 0.0, yaw: -30.0, roll: 0.0 }
+        dimensions_m: { x: 0.5, y: 1.78, z: 0.36 }
+    markers:
+      - id: offscreen_water
+        name: Offscreen danger on the water
+        position: { x: 0.0, y: 1.25, z: 10.0 }
+    blocking:
+      - subject_id: observer
+        keyframes:
+          - frame: 0
+            transform:
+              position: { x: 0.0, y: 0.0, z: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: 180.0, roll: 0.0 }
+            gaze_target: { type: marker, id: offscreen_water }
+            action: "越过镜头观察海面，呼吸平稳"
+          - frame: 48
+            transform:
+              position: { x: 0.0, y: 0.0, z: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: 180.0, roll: 0.0 }
+            gaze_target: { type: marker, id: offscreen_water }
+            action: "确认危险，身体和视线同时定住"
+          - frame: 192
+            transform:
+              position: { x: 0.0, y: 0.0, z: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: 180.0, roll: 0.0 }
+            gaze_target: { type: marker, id: offscreen_water }
+            action: "保持震惊，不用表演动作替代镜头冲击"
+    beats:
+      - id: ordinary_scan
+        range: { start: 0, end: 48 }
+        intent: "先给观众两秒稳定观察，建立普通空间"
+        emphasis: low
+        subject_ids: [observer, left_beachgoer, right_beachgoer]
+      - id: perspective_shock
+        range: { start: 48, end: 168 }
+        intent: "相机后退并同步推长焦段，让背景向稳定主体压缩"
+        emphasis: high
+        subject_ids: [observer, left_beachgoer, right_beachgoer]
+      - id: stunned_hold
+        range: { start: 168, end: 192 }
+        intent: "运动结束后保留一秒，让空间异常落在人物心理上"
+        emphasis: medium
+        subject_ids: [observer]
+    shots:
+      - id: beach_dolly_zoom
+        range: { start: 0, end: 192 }
+        purpose: [subjective, emphasize, disorient]
+        coverage_role: reaction
+        framing:
+          shot_size: medium_close_up
+          horizontal_angle: frontal
+          vertical_angle: eye_level
+          subject_ids: [observer]
+          composition:
+            strategy: centered
+            headroom: 0.08
+            depth_layers:
+              - { name: observer, role: foreground, subject_ids: [observer] }
+              - { name: beach_activity, role: background, subject_ids: [left_beachgoer, right_beachgoer] }
+            notes:
+              - "画面判据：Observer 高度基本不变，两个 beachgoer 向画面边缘扩张。"
+              - "节奏判据：0–2 秒静止，2–7 秒反向 dolly zoom，7–8 秒静止。"
+        camera:
+          rig: dolly
+          initial_state:
+            transform:
+              position: { x: 0.0, y: 1.26, z: 3.8 }
+            lens:
+              focal_length_mm: 45.0
+              aperture_f: 5.6
+            focus:
+              target: { type: subject, id: observer }
+              distance_m: 3.8
+            exposure:
+              iso: 200
+              shutter_angle_deg: 180.0
+              white_balance_k: 5600
+          operations:
+            - range: { start: 48, end: 168 }
+              easing: ease_in_out
+              operation:
+                op: dolly_zoom
+                target: { type: subject, id: observer }
+                to_distance_m: 7.0
+                keep_subject_frame_fraction: 0.42
+        continuity:
+          camera_azimuth_deg: 0.0
+        notes:
+          - "结构参考《大白鲨》(1975) 海滩镜头：相机后退、焦段变长、人物尺度稳定。"
+          - "不复刻对白、演员形象或具体美术，只测试镜头语法。"

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use cinematography_ir::math::Vec3;
+use cinematography_ir::solve::SolvedCameraFrame;
 use cinematography_ir::{
     load_project, solve_project, CineProject, Fidelity, SolveError, SolveOptions, SolvedProject,
 };
@@ -38,6 +39,7 @@ fn every_example_solves_deterministically() {
         "intentional_axis_cross.yaml",
         "unsafe_axis_cross.yaml",
         "dolly_zoom.yaml",
+        "jaws_beach_dolly_zoom.yaml",
     ] {
         let first = solve(name);
         let second = solve(name);
@@ -155,6 +157,49 @@ fn dolly_zoom_keeps_subject_size_constant() {
             Some(true)
         );
     }
+}
+
+#[test]
+fn jaws_study_keeps_the_observer_stable_while_the_background_expands() {
+    let solved = solve("jaws_beach_dolly_zoom.yaml");
+    let scene = &solved.scenes[0];
+    let observer = scene.subject("observer").unwrap();
+    let background = scene.subject("left_beachgoer").unwrap();
+    let shot = &scene.shots[0];
+    let before = &shot.frames[48];
+    let after = &shot.frames[167];
+    let observer_aim =
+        observer.transforms[48].position + Vec3::new(0.0, observer.dimensions_m.y * 0.9, 0.0);
+    let background_aim =
+        background.transforms[48].position + Vec3::new(0.0, background.dimensions_m.y * 0.9, 0.0);
+
+    let subject_scale =
+        |frame: &SolvedCameraFrame| frame.focal_length_mm / distance(frame.position, observer_aim);
+    let background_offset = |frame: &SolvedCameraFrame| {
+        let delta = background_aim - frame.position;
+        frame.focal_length_mm * delta.dot(frame.right).abs() / delta.dot(frame.forward)
+    };
+
+    let scale_delta =
+        ((subject_scale(after) - subject_scale(before)) / subject_scale(before)).abs();
+    assert!(
+        scale_delta < 1e-3,
+        "observer scale drifted by {scale_delta}"
+    );
+    assert!(
+        after.focal_length_mm > before.focal_length_mm,
+        "dolly-out requires zoom-in"
+    );
+    assert!(
+        distance(after.position, observer_aim) > distance(before.position, observer_aim),
+        "camera must move away from the observer"
+    );
+    assert!(
+        background_offset(after) > background_offset(before) * 1.25,
+        "background must expand outward: {} -> {}",
+        background_offset(before),
+        background_offset(after)
+    );
 }
 
 #[test]
