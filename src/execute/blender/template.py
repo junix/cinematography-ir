@@ -77,7 +77,6 @@ def keypoints(width, depth, height):
 
 def clay_material(name, rgb):
     mat = bpy.data.materials.new(name)
-    mat.use_nodes = True
     bsdf = mat.node_tree.nodes.get("Principled BSDF")
     bsdf.inputs["Base Color"].default_value = linear_rgb(rgb)
     bsdf.inputs["Roughness"].default_value = 0.85
@@ -86,7 +85,6 @@ def clay_material(name, rgb):
 
 def emission_material(name, rgb, strength=1.0):
     mat = bpy.data.materials.new(name)
-    mat.use_nodes = True
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
     nodes.clear()
@@ -101,7 +99,6 @@ def emission_material(name, rgb, strength=1.0):
 def object_color_material():
     """Emits each object's `color` — the segmentation/id override."""
     mat = bpy.data.materials.new("cine_seg_override")
-    mat.use_nodes = True
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
     nodes.clear()
@@ -116,7 +113,6 @@ def object_color_material():
 def camera_normal_material():
     """Emits camera-space normals as (n + 1) / 2 — the normal-map override."""
     mat = bpy.data.materials.new("cine_normal_override")
-    mat.use_nodes = True
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
     nodes.clear()
@@ -244,11 +240,25 @@ def build_proxy(subject, parent, body_collection, skeleton_collection, material,
 # Scene assembly
 # --------------------------------------------------------------------------
 
+def iter_action_fcurves(action):
+    # Blender 4.4+ creates layered actions. Their curves live inside channel
+    # bags instead of the legacy Action.fcurves collection retained by older
+    # Blender versions.
+    legacy_fcurves = getattr(action, "fcurves", None)
+    if legacy_fcurves is not None:
+        yield from legacy_fcurves
+        return
+    for layer in action.layers:
+        for strip in layer.strips:
+            for channelbag in strip.channelbags:
+                yield from channelbag.fcurves
+
+
 def linearise_fcurves(id_data):
     action = id_data.animation_data.action if id_data.animation_data else None
     if action is None:
         return
-    for fcurve in action.fcurves:
+    for fcurve in iter_action_fcurves(action):
         for point in fcurve.keyframe_points:
             point.interpolation = "LINEAR"
 
@@ -298,7 +308,6 @@ def build_scene(p):
     scene.display_settings.display_device = "sRGB"
 
     world = bpy.data.worlds.new("cine_world")
-    world.use_nodes = True
     background = world.node_tree.nodes.get("Background")
     background.inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
     background.inputs["Strength"].default_value = 1.0
@@ -417,9 +426,10 @@ def configure_passes(scene, bodies, skeletons, passes, out_dir, near, far):
         exclude(layer, bodies, True)
         layers["openpose"] = layer
 
-    scene.use_nodes = True
-    tree = scene.node_tree
-    tree.nodes.clear()
+    tree = bpy.data.node_groups.new("CineIRCompositor", type="CompositorNodeTree")
+    tree.interface.new_socket(
+        name="Image", in_out="OUTPUT", socket_type="NodeSocketColor")
+    scene.compositing_node_group = tree
 
     def render_layer_node(name):
         node = tree.nodes.new("CompositorNodeRLayers")
@@ -429,8 +439,14 @@ def configure_passes(scene, bodies, skeletons, passes, out_dir, near, far):
 
     def file_output(name, fmt, depth, color_mode, raw):
         node = tree.nodes.new("CompositorNodeOutputFile")
-        node.base_path = os.path.join(out_dir, name)
-        node.file_slots[0].path = "####"
+        node.directory = os.path.join(out_dir, name)
+        node.file_name = "####"
+        socket_type = "FLOAT" if color_mode == "BW" else "RGBA"
+        # A non-empty item name is appended to every rendered filename in
+        # Blender 5.2 (for example, 0000Image.png). Each node has one item, so
+        # keep its name empty to preserve the manifest's ####.ext contract.
+        node.file_output_items.new(socket_type, "")
+        node.format.media_type = "IMAGE"
         node.format.file_format = fmt
         node.format.color_mode = color_mode
         node.format.color_depth = depth
@@ -441,12 +457,14 @@ def configure_passes(scene, bodies, skeletons, passes, out_dir, near, far):
         return node
 
     rl_main = render_layer_node("main")
+    group_output = tree.nodes.new("NodeGroupOutput")
+    tree.links.new(rl_main.outputs["Image"], group_output.inputs["Image"])
     if "beauty" in passes:
         node = file_output("beauty", "PNG", "8", "RGB", raw=False)
         tree.links.new(rl_main.outputs["Image"], node.inputs[0])
     if "depth" in passes:
-        remap = tree.nodes.new("CompositorNodeMapRange")
-        remap.use_clamp = True
+        remap = tree.nodes.new("ShaderNodeMapRange")
+        remap.clamp = True
         remap.inputs[1].default_value = float(near)   # From Min
         remap.inputs[2].default_value = float(far)    # From Max
         remap.inputs[3].default_value = 1.0           # To Min (near = white)

@@ -19,6 +19,19 @@ use crate::solve::{SolvedProject, SolvedScene};
 pub use convert::{build_payload, depth_bounds, to_blender, BlenderPayload, RenderSettings};
 pub use script::render_script;
 
+fn blender_command(blender: &Path, script_path: &Path) -> Command {
+    let mut command = Command::new(blender);
+    command
+        .arg("--background")
+        .arg("--factory-startup")
+        .arg("--disable-autoexec")
+        .arg("--python-exit-code")
+        .arg("70")
+        .arg("--python")
+        .arg(script_path);
+    command
+}
+
 #[derive(Debug, Clone)]
 pub struct BlenderOptions {
     pub resolution: (u32, u32),
@@ -249,11 +262,7 @@ impl CinematographyAdapter for BlenderAdapter {
 
             let mut executed = false;
             if let Some(blender) = &blender {
-                let status = Command::new(blender)
-                    .arg("--background")
-                    .arg("--factory-startup")
-                    .arg("--python")
-                    .arg(&script_path)
+                let status = blender_command(blender, &script_path)
                     .status()
                     .with_context(|| format!("failed to launch {}", blender.display()))?;
                 if !status.success() {
@@ -291,5 +300,31 @@ impl CinematographyAdapter for BlenderAdapter {
             scenes,
             runtime: blender,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blender_command_propagates_python_failures() {
+        let command = blender_command(Path::new("blender"), Path::new("build.py"));
+        let args: Vec<_> = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            args,
+            [
+                "--background",
+                "--factory-startup",
+                "--disable-autoexec",
+                "--python-exit-code",
+                "70",
+                "--python",
+                "build.py",
+            ]
+        );
     }
 }

@@ -44,6 +44,11 @@ def call_counts():
         "markers_new": context.scene.timeline_markers.new.call_count,
         "view_layers_new": context.scene.view_layers.new.call_count,
         "render_calls": ops.render.render.call_count,
-        "compositor_nodes": context.scene.node_tree.nodes.new.call_count,
+        "compositor_groups": data.node_groups.new.call_count,
+        "compositor_nodes": data.node_groups.new.return_value.nodes.new.call_count,
+        "file_output_items": (
+            data.node_groups.new.return_value.nodes.new.return_value
+            .file_output_items.new.call_count
+        ),
         "objects_new": data.objects.new.call_count,
     }

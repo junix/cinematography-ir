@@ -133,7 +133,7 @@ Blender 的角色**不是**出成片，而是渲染带最简人形骨架的黏�
 
 坐标转换全部在 Rust 侧完成（`execute/blender/convert.rs`），Python 脚本只接收 Blender 世界空间的 位置 + 基向量；相机沿本地 −Z、主体面朝本地 +Y。每个镜头一台相机，用时间线标记切换。输出目录：`<out-dir>/<scene_id>/{build.py, manifest.json, <pass>/####.png}`。
 
-本项目在没有 Blender 的机器上以 `tests/python/bpy_stub` 桩执行整段脚本来验证控制流与数据管线；真实 `bpy` API 调用需在装有 Blender 4.x 的机器上跑通。
+无 Blender 的 CI 环境以 `tests/python/bpy_stub` 桩执行整段脚本，验证控制流与数据管线；涉及 Blender 的改动还需在 Blender 5.2 LTS 中完成真实 `bpy` 运行与输出制品解码验证。
 
 ## 15.6 闭环测量
 

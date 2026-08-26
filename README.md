@@ -171,7 +171,7 @@ operations:
 - 多机位同步拍摄与多轨编辑；
 - 从几何自动推导银幕方向和视线（轴线侧已可推导并与声明值交叉校验）；
 - `dolly_zoom.keep_subject_frame_fraction` 的精确求解；
-- Unreal / Three.js / USD 适配器（Blender 已有；本机无 Blender，真实 `bpy` 运行未在本机验证）；
+- Unreal / Three.js / USD 适配器（Blender 已有，并已在 Blender 5.2 LTS 实机验证）；
 - 从生成视频估计相机轨迹的估计器（`compare` 只实现比对的一半）。
 
 明确不做：角色外观身份保真（白模只需可区分，由下游另一模型负责）；视图层加载任何资产。这些应位于 compiler/solver/backend 层，而不是继续膨胀核心交换格式。

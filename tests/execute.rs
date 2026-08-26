@@ -124,6 +124,19 @@ fn script_is_deterministic_and_embeds_the_payload() {
         a.contains("timeline_markers.new"),
         "shots switch cameras via markers"
     );
+    assert!(
+        a.contains("for channelbag in strip.channelbags"),
+        "layered Blender actions expose f-curves through channel bags"
+    );
+    assert!(a.contains("scene.compositing_node_group = tree"));
+    assert!(a.contains("NodeGroupOutput"));
+    assert!(a.contains("node.file_output_items.new"));
+    assert!(a.contains("ShaderNodeMapRange"));
+    assert!(!a.contains("node.base_path"));
+    assert!(!a.contains("node.file_slots"));
+    assert!(!a.contains("CompositorNodeMapRange"));
+    assert!(!a.contains("tree = scene.node_tree"));
+    assert!(!a.contains(".use_nodes = True"));
     assert!(!a.contains("__PAYLOAD_JSON__"));
 }
 
@@ -177,6 +190,8 @@ fn script_only_writes_build_script_and_manifest() {
             "normal + id + openpose layers: {summary}"
         );
         assert_eq!(summary["render_calls"], 1, "{summary}");
+        assert_eq!(summary["compositor_groups"], 1, "{summary}");
+        assert_eq!(summary["file_output_items"], 6, "{summary}");
         assert_eq!(
             summary["objects_new"],
             3 + 3 + 2,
