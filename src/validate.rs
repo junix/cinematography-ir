@@ -39,6 +39,31 @@ pub fn validate_project(project: &CineProject) -> ValidationReport {
         ));
     }
 
+    {
+        use crate::model::{AxisName, SignedAxis};
+        let cs = &project.coordinate_system;
+        let forward_axis = match cs.forward_axis {
+            SignedAxis::PositiveX | SignedAxis::NegativeX => AxisName::X,
+            SignedAxis::PositiveY | SignedAxis::NegativeY => AxisName::Y,
+            SignedAxis::PositiveZ | SignedAxis::NegativeZ => AxisName::Z,
+        };
+        if forward_axis == cs.up_axis {
+            report.push(
+                Diagnostic::error(
+                    "COORDINATE_SYSTEM_AXES_PARALLEL",
+                    "coordinate_system.forward_axis",
+                    format!(
+                        "forward_axis {:?} is parallel to up_axis {:?}; every camera basis would be degenerate",
+                        cs.forward_axis, cs.up_axis
+                    ),
+                )
+                .with_hint(
+                    "Set forward_axis explicitly, e.g. positive_y for a Blender-style Z-up world.",
+                ),
+            );
+        }
+    }
+
     if project.scenes.is_empty() {
         report.push(Diagnostic::error(
             "PROJECT_HAS_NO_SCENES",
@@ -144,15 +169,7 @@ fn validate_scene(scene: &Scene, scene_index: usize, report: &mut ValidationRepo
 
     for (index, shot) in scene.shots.iter().enumerate() {
         validate_shot(
-            shot,
-            index,
-            scene,
-            &subjects,
-            &markers,
-            &axes,
-            &lighting,
-            &base,
-            report,
+            shot, index, scene, &subjects, &markers, &axes, &lighting, &base, report,
         );
     }
 }
@@ -160,7 +177,11 @@ fn validate_scene(scene: &Scene, scene_index: usize, report: &mut ValidationRepo
 fn validate_subjects(scene: &Scene, base: &str, report: &mut ValidationReport) {
     for (index, subject) in scene.subjects.iter().enumerate() {
         let path = format!("{base}.subjects[{index}]");
-        validate_transform(subject.initial_transform, &format!("{path}.initial_transform"), report);
+        validate_transform(
+            subject.initial_transform,
+            &format!("{path}.initial_transform"),
+            report,
+        );
         if let Some(dimensions) = subject.dimensions_m {
             validate_vec3(dimensions, &format!("{path}.dimensions_m"), report);
             if dimensions.x <= 0.0 || dimensions.y <= 0.0 || dimensions.z <= 0.0 {
@@ -193,9 +214,15 @@ fn validate_axes(
 ) {
     for (index, axis) in scene.axes.iter().enumerate() {
         let path = format!("{base}.axes[{index}]");
-        validate_target_ref(&axis.from, subjects, markers, &format!("{path}.from"), report);
+        validate_target_ref(
+            &axis.from,
+            subjects,
+            markers,
+            &format!("{path}.from"),
+            report,
+        );
         validate_target_ref(&axis.to, subjects, markers, &format!("{path}.to"), report);
-        if &axis.from == &axis.to {
+        if axis.from == axis.to {
             report.push(Diagnostic::error(
                 "AXIS_DEGENERATE",
                 path,
@@ -247,7 +274,11 @@ fn validate_blocking(
                 ));
             }
             last_frame = Some(keyframe.frame);
-            validate_transform(keyframe.transform, &format!("{keyframe_path}.transform"), report);
+            validate_transform(
+                keyframe.transform,
+                &format!("{keyframe_path}.transform"),
+                report,
+            );
             if let Some(target) = &keyframe.gaze_target {
                 validate_target_ref(
                     target,
@@ -269,7 +300,12 @@ fn validate_beats(
 ) {
     for (index, beat) in scene.beats.iter().enumerate() {
         let path = format!("{base}.beats[{index}]");
-        validate_scene_range(beat.range, scene.duration_frames, &format!("{path}.range"), report);
+        validate_scene_range(
+            beat.range,
+            scene.duration_frames,
+            &format!("{path}.range"),
+            report,
+        );
         for subject_id in &beat.subject_ids {
             if !subjects.contains(subject_id.as_str()) {
                 report.push(Diagnostic::error(
@@ -336,7 +372,11 @@ fn validate_lighting(scene: &Scene, base: &str, report: &mut ValidationReport) {
         }
         for (source_index, source) in setup.sources.iter().enumerate() {
             let source_path = format!("{path}.sources[{source_index}]");
-            validate_transform(source.transform, &format!("{source_path}.transform"), report);
+            validate_transform(
+                source.transform,
+                &format!("{source_path}.transform"),
+                report,
+            );
             if source
                 .intensity_lux
                 .is_some_and(|value| !value.is_finite() || value < 0.0)
@@ -371,7 +411,12 @@ fn validate_shot(
     report: &mut ValidationReport,
 ) {
     let path = format!("{scene_path}.shots[{index}]");
-    validate_scene_range(shot.range, scene.duration_frames, &format!("{path}.range"), report);
+    validate_scene_range(
+        shot.range,
+        scene.duration_frames,
+        &format!("{path}.range"),
+        report,
+    );
 
     if shot.purpose.is_empty() {
         report.push(Diagnostic::warning(
@@ -416,20 +461,12 @@ fn validate_shot(
         ));
     }
 
-    for (layer_index, layer) in shot
-        .framing
-        .composition
-        .depth_layers
-        .iter()
-        .enumerate()
-    {
+    for (layer_index, layer) in shot.framing.composition.depth_layers.iter().enumerate() {
         for subject_id in &layer.subject_ids {
             if !subjects.contains(subject_id.as_str()) {
                 report.push(Diagnostic::error(
                     "DEPTH_LAYER_SUBJECT_UNKNOWN",
-                    format!(
-                        "{path}.framing.composition.depth_layers[{layer_index}].subject_ids"
-                    ),
+                    format!("{path}.framing.composition.depth_layers[{layer_index}].subject_ids"),
                     format!("unknown subject '{subject_id}'"),
                 ));
             }
@@ -462,9 +499,7 @@ fn validate_shot(
             report.push(Diagnostic::error(
                 "CAMERA_OPERATION_RANGE_INVALID",
                 format!("{operation_path}.range"),
-                format!(
-                    "operation range must lie inside shot-local range [0, {shot_duration})"
-                ),
+                format!("operation range must lie inside shot-local range [0, {shot_duration})"),
             ));
         }
         if previous_operation_start.is_some_and(|start| timed.range.start < start) {
@@ -507,9 +542,7 @@ fn validate_shot(
         if !subjects.contains(observation.subject_id.as_str()) {
             report.push(Diagnostic::error(
                 "SCREEN_DIRECTION_SUBJECT_UNKNOWN",
-                format!(
-                    "{path}.continuity.screen_directions[{direction_index}].subject_id"
-                ),
+                format!("{path}.continuity.screen_directions[{direction_index}].subject_id"),
                 format!("unknown subject '{}'", observation.subject_id),
             ));
         }
@@ -565,7 +598,10 @@ fn validate_shot_timeline(scene: &Scene, scene_path: &str, report: &mut Validati
             report.push(Diagnostic::warning(
                 "EDIT_TIMELINE_START_GAP",
                 format!("{scene_path}.shots"),
-                format!("edit timeline starts at frame {}, not frame 0", first.range.start),
+                format!(
+                    "edit timeline starts at frame {}, not frame 0",
+                    first.range.start
+                ),
             ));
         }
     }
@@ -647,7 +683,13 @@ fn validate_camera_state(
     }
 
     if let Some(target) = &state.focus.target {
-        validate_target_ref(target, subjects, markers, &format!("{path}.focus.target"), report);
+        validate_target_ref(
+            target,
+            subjects,
+            markers,
+            &format!("{path}.focus.target"),
+            report,
+        );
     }
     if state
         .focus
@@ -757,7 +799,13 @@ fn validate_camera_operation(
         CameraOperation::Crane { delta, look_at } => {
             validate_vec3(*delta, &format!("{path}.delta"), report);
             if let Some(target) = look_at {
-                validate_target_ref(target, subjects, markers, &format!("{path}.look_at"), report);
+                validate_target_ref(
+                    target,
+                    subjects,
+                    markers,
+                    &format!("{path}.look_at"),
+                    report,
+                );
             }
         }
         CameraOperation::Zoom { to_focal_length_mm } => {
@@ -795,8 +843,7 @@ fn validate_camera_operation(
                     "target distance must be finite and positive",
                 ));
             }
-            if !positive_finite(*keep_subject_frame_fraction)
-                || *keep_subject_frame_fraction > 1.0
+            if !positive_finite(*keep_subject_frame_fraction) || *keep_subject_frame_fraction > 1.0
             {
                 report.push(Diagnostic::error(
                     "DOLLY_ZOOM_SUBJECT_FRACTION_INVALID",
@@ -899,7 +946,10 @@ fn validate_scene_range(
         report.push(Diagnostic::error(
             "FRAME_RANGE_OUT_OF_SCENE",
             path,
-            format!("frame range ends at {}, beyond scene duration {duration}", range.end),
+            format!(
+                "frame range ends at {}, beyond scene duration {duration}",
+                range.end
+            ),
         ));
     }
 }

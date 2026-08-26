@@ -99,8 +99,8 @@ axes:
 ```yaml
 initial_state:
   transform:
-    position: { x: -0.65, y: 1.48, z: -2.7 }
-    rotation_deg: { pitch: 0.0, yaw: -14.0, roll: 0.0 }
+    position: { x: -0.65, y: 1.48, z: 2.7 }
+    rotation_deg: { pitch: 0.0, yaw: 14.0, roll: 0.0 }
   lens:
     focal_length_mm: 65.0
     sensor_width_mm: 36.0

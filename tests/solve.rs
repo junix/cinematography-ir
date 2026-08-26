@@ -1,0 +1,649 @@
+use std::path::PathBuf;
+
+use cinematography_ir::math::Vec3;
+use cinematography_ir::{
+    load_project, solve_project, CineProject, Fidelity, SolveError, SolveOptions, SolvedProject,
+};
+
+fn example(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("examples")
+        .join(name)
+}
+
+fn solve(name: &str) -> SolvedProject {
+    let project = load_project(example(name)).expect("example must parse");
+    let output = solve_project(&project, &SolveOptions::default()).expect("example must solve");
+    let geometry: Vec<_> = output
+        .report
+        .diagnostics
+        .iter()
+        .filter(|d| d.code.starts_with("GEOMETRY_"))
+        .collect();
+    assert!(
+        geometry.is_empty(),
+        "{name}: unexpected geometry diagnostics {geometry:#?}"
+    );
+    output.solved
+}
+
+fn distance(a: Vec3, b: Vec3) -> f32 {
+    (a - b).length()
+}
+
+#[test]
+fn every_example_solves_deterministically() {
+    for name in [
+        "dialogue.yaml",
+        "intentional_axis_cross.yaml",
+        "unsafe_axis_cross.yaml",
+        "dolly_zoom.yaml",
+    ] {
+        let first = solve(name);
+        let second = solve(name);
+        assert_eq!(first, second, "{name} must solve identically twice");
+        let json_a = serde_json::to_string(&first).unwrap();
+        let json_b = serde_json::to_string(&second).unwrap();
+        assert_eq!(json_a, json_b);
+
+        for scene in &first.scenes {
+            for track in &scene.subjects {
+                assert_eq!(track.transforms.len() as u64, scene.duration_frames);
+            }
+            for shot in &scene.shots {
+                assert_eq!(
+                    shot.frames.len() as u64,
+                    shot.range.duration(),
+                    "{name}/{}",
+                    shot.id
+                );
+                for frame in &shot.frames {
+                    assert!(frame.position.is_finite());
+                    assert!((frame.forward.length() - 1.0).abs() < 1e-4);
+                    assert!(frame.forward.dot(frame.up).abs() < 1e-3);
+                    assert!(frame.focal_length_mm > 0.0);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn solved_json_round_trips() {
+    let solved = solve("dialogue.yaml");
+    let json = serde_json::to_string_pretty(&solved).unwrap();
+    let back: SolvedProject = serde_json::from_str(&json).unwrap();
+    assert_eq!(solved, back);
+}
+
+#[test]
+fn dolly_moves_toward_the_framed_subject() {
+    let solved = solve("dialogue.yaml");
+    let scene = &solved.scenes[0];
+    let alice = scene.subject("alice").unwrap();
+    let shot = scene.shot("alice_close_up").unwrap();
+    let aim = |frame| {
+        let t = alice.transform_at(frame);
+        t.position + Vec3::new(0.0, alice.dimensions_m.y * 0.9, 0.0)
+    };
+
+    let start = distance(shot.frames[0].position, aim(shot.range.start));
+    let end = distance(
+        shot.frames.last().unwrap().position,
+        aim(shot.range.end - 1),
+    );
+    assert!(
+        end < start,
+        "dolly in must reduce distance: {start} -> {end}"
+    );
+
+    let mut previous = start;
+    for frame in &shot.frames {
+        let d = distance(frame.position, aim(frame.frame));
+        assert!(d <= previous + 1e-4, "distance must be non-increasing");
+        previous = d;
+    }
+    let travelled = distance(
+        shot.frames[0].position,
+        shot.frames.last().unwrap().position,
+    );
+    assert!(
+        (travelled - 0.35).abs() < 1e-3,
+        "dolly distance {travelled}"
+    );
+    // Motion is confined to the operation's range [16, 72).
+    assert_eq!(shot.frames[16].position, shot.frames[0].position);
+    assert_eq!(shot.frames[72].position, shot.frames[79].position);
+}
+
+#[test]
+fn dolly_zoom_keeps_subject_size_constant() {
+    let solved = solve("dolly_zoom.yaml");
+    let scene = &solved.scenes[0];
+    let hero = scene.subject("hero").unwrap();
+    let shot = &scene.shots[0];
+    let aim = hero.transforms[0].position + Vec3::new(0.0, hero.dimensions_m.y * 0.9, 0.0);
+
+    let first = &shot.frames[0];
+    let last = shot.frames.last().unwrap();
+    let d0 = distance(first.position, aim);
+    let d1 = distance(last.position, aim);
+    assert!((d0 - 4.5).abs() < 0.2, "start distance {d0}");
+    assert!((d1 - 2.2).abs() < 0.2, "end distance {d1}");
+    assert!(
+        last.focal_length_mm < first.focal_length_mm,
+        "dolly-in requires zoom-out"
+    );
+
+    let ratio0 = first.focal_length_mm / d0;
+    let mut previous_distance = d0;
+    for frame in &shot.frames {
+        let d = distance(frame.position, aim);
+        assert!(d <= previous_distance + 1e-4, "distance must not increase");
+        previous_distance = d;
+        let ratio = frame.focal_length_mm / d;
+        assert!(
+            ((ratio - ratio0) / ratio0).abs() < 1e-3,
+            "focal/distance must stay constant: {ratio} vs {ratio0}"
+        );
+        assert!(
+            frame.forward.dot(aim - frame.position) > 0.0,
+            "camera keeps facing hero"
+        );
+        assert_eq!(
+            frame.focus_distance_m.map(|v| (v - d).abs() < 1e-3),
+            Some(true)
+        );
+    }
+}
+
+#[test]
+fn orbit_keeps_radius_and_faces_target() {
+    let solved = solve("intentional_axis_cross.yaml");
+    let scene = &solved.scenes[0];
+    let shot = scene.shot("visible_cross").unwrap();
+    let target = Vec3::new(0.0, 1.4, 0.0);
+
+    // The camera starts 3.0017 m from the centre (0.1 m above it) and the
+    // operation declares radius_m: 3.0, so the radius eases from r0 to 3.0.
+    let r0 = distance(shot.frames[0].position, target);
+    assert!((r0 - 3.0).abs() < 2e-3, "{r0}");
+    for frame in &shot.frames {
+        let r = distance(frame.position, target);
+        assert!(
+            r <= r0 + 1e-4 && r >= 3.0 - 1e-4,
+            "orbit radius drifted to {r}"
+        );
+        let to_target = (target - frame.position).normalized().unwrap();
+        assert!(
+            frame.forward.dot(to_target) > 0.999,
+            "camera must face the orbit centre"
+        );
+    }
+    let first = shot.frames[0].position;
+    let last = shot.frames.last().unwrap().position;
+    assert!(
+        (distance(last, target) - 3.0).abs() < 1e-3,
+        "radius settles at 3.0"
+    );
+    assert!((first.z - 3.0).abs() < 1e-3);
+    assert!(
+        last.z < -2.9,
+        "after a 180° orbit the camera is on the far side: {last:?}"
+    );
+    assert!(last.x.abs() < 0.1);
+}
+
+#[test]
+fn blocking_interpolates_between_keyframes() {
+    let source = r#"
+schema_version: "0.1"
+id: blocking
+title: Blocking
+frame_rate: { numerator: 24 }
+scenes:
+  - id: s
+    title: S
+    duration_frames: 48
+    subjects:
+      - { id: walker, name: Walker, kind: character }
+    blocking:
+      - subject_id: walker
+        keyframes:
+          - { frame: 8, transform: { position: { x: 0.0, y: 0.0, z: 0.0 }, rotation_deg: { yaw: 0.0 } } }
+          - { frame: 40, transform: { position: { x: 4.0, y: 0.0, z: -2.0 }, rotation_deg: { yaw: 90.0 } } }
+    shots:
+      - id: only
+        range: { start: 0, end: 48 }
+        framing: { shot_size: medium, subject_ids: [walker] }
+        camera:
+          initial_state:
+            transform: { position: { x: 0.0, y: 1.5, z: 6.0 } }
+"#;
+    let project: CineProject = serde_yaml::from_str(source).unwrap();
+    let solved = solve_project(&project, &SolveOptions::default())
+        .unwrap()
+        .solved;
+    let track = &solved.scenes[0].subjects[0];
+    assert_eq!(
+        track.transforms[0].position,
+        Vec3::ZERO,
+        "held before first key"
+    );
+    let mid = track.transforms[24].position;
+    assert!(
+        (mid.x - 2.0).abs() < 1e-4 && (mid.z + 1.0).abs() < 1e-4,
+        "{mid:?}"
+    );
+    assert!((track.transforms[24].rotation_deg.yaw - 45.0).abs() < 1e-3);
+    assert_eq!(
+        track.transforms[47].position,
+        Vec3::new(4.0, 0.0, -2.0),
+        "held after last key"
+    );
+    assert_eq!(
+        track.dimensions_m,
+        Vec3::new(0.5, 1.75, 0.35),
+        "character default dimensions"
+    );
+    assert_eq!(track.color_name, "red");
+}
+
+#[test]
+fn handheld_noise_is_seeded() {
+    let make = |seed: u64| {
+        format!(
+            r#"
+schema_version: "0.1"
+id: noise
+title: Noise
+frame_rate: {{ numerator: 24 }}
+scenes:
+  - id: s
+    title: S
+    duration_frames: 48
+    subjects:
+      - {{ id: a, name: A, kind: character }}
+    shots:
+      - id: only
+        range: {{ start: 0, end: 48 }}
+        framing: {{ shot_size: medium, subject_ids: [a] }}
+        camera:
+          rig: handheld
+          initial_state:
+            transform: {{ position: {{ x: 0.0, y: 1.5, z: 4.0 }} }}
+          operations:
+            - range: {{ start: 0, end: 48 }}
+              operation:
+                op: handheld_noise
+                translation_amplitude_m: 0.02
+                rotation_amplitude_deg: 0.5
+                frequency_hz: 1.5
+                seed: {seed}
+"#
+        )
+    };
+    let solve_seed = |seed: u64| {
+        let project: CineProject = serde_yaml::from_str(&make(seed)).unwrap();
+        solve_project(&project, &SolveOptions::default())
+            .unwrap()
+            .solved
+    };
+    let a = solve_seed(7);
+    let b = solve_seed(7);
+    let c = solve_seed(8);
+    assert_eq!(a, b, "same seed must reproduce");
+    assert_ne!(a, c, "different seeds must differ");
+
+    let base = Vec3::new(0.0, 1.5, 4.0);
+    let mut moved = false;
+    for frame in &a.scenes[0].shots[0].frames {
+        let offset = distance(frame.position, base);
+        assert!(offset <= 0.02 * 1.5, "noise exceeds amplitude: {offset}");
+        moved |= offset > 1e-4;
+    }
+    assert!(moved, "noise must actually move the camera");
+}
+
+#[test]
+fn geometry_checks_catch_a_camera_facing_away() {
+    let mut project = load_project(example("dialogue.yaml")).unwrap();
+    // Re-introduce the authoring error: camera on the wrong side of the
+    // subjects for a -Z-forward system.
+    let shot = &mut project.scenes[0].shots[0];
+    shot.camera.initial_state.transform.position.z = -5.2;
+    let output = solve_project(&project, &SolveOptions::default()).unwrap();
+    let codes: Vec<&str> = output
+        .report
+        .diagnostics
+        .iter()
+        .map(|d| d.code.as_str())
+        .collect();
+    assert!(
+        codes.contains(&"GEOMETRY_SUBJECT_BEHIND_CAMERA"),
+        "{codes:?}"
+    );
+    assert!(codes.contains(&"GEOMETRY_AXIS_SIDE_MISMATCH"), "{codes:?}");
+}
+
+#[test]
+fn geometry_checks_catch_subjects_outside_the_fov() {
+    let mut project = load_project(example("dialogue.yaml")).unwrap();
+    let shot = &mut project.scenes[0].shots[1]; // alice_close_up, 65 mm
+    shot.camera.initial_state.transform.rotation_deg.yaw = -60.0; // turn away from Alice
+    let output = solve_project(&project, &SolveOptions::default()).unwrap();
+    assert!(output
+        .report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "GEOMETRY_SUBJECT_OUTSIDE_FOV"));
+}
+
+#[test]
+fn axis_side_declarations_match_geometry_in_every_example() {
+    // `solve()` already asserts no GEOMETRY_* diagnostics; this spells out the
+    // intent for the two examples whose declarations exercise both sides.
+    solve("unsafe_axis_cross.yaml");
+    solve("intentional_axis_cross.yaml");
+}
+
+#[test]
+fn invalid_documents_and_full_fidelity_are_rejected() {
+    let mut project = load_project(example("dialogue.yaml")).unwrap();
+    match solve_project(
+        &project,
+        &SolveOptions {
+            fidelity: Fidelity::Full,
+        },
+    ) {
+        Err(SolveError::FidelityUnsupported(Fidelity::Full)) => {}
+        other => panic!("expected fidelity error, got {other:?}"),
+    }
+    project.scenes[0].shots[0]
+        .framing
+        .subject_ids
+        .push("nobody".to_owned());
+    match solve_project(&project, &SolveOptions::default()) {
+        Err(SolveError::Invalid(report)) => assert!(report.has_errors()),
+        other => panic!("expected validation failure, got {other:?}"),
+    }
+}
+
+fn single_shot(operations: &str) -> CineProject {
+    let source = format!(
+        r#"
+schema_version: "0.1"
+id: probe
+title: Probe
+frame_rate: {{ numerator: 24 }}
+scenes:
+  - id: s
+    title: S
+    duration_frames: 48
+    subjects:
+      - {{ id: a, name: A, kind: character }}
+    shots:
+      - id: only
+        range: {{ start: 0, end: 48 }}
+        purpose: [observe]
+        framing: {{ shot_size: medium, subject_ids: [a] }}
+        camera:
+          initial_state:
+            transform: {{ position: {{ x: 0.0, y: 1.5, z: 4.0 }} }}
+            lens: {{ focal_length_mm: 35.0 }}
+          operations:
+{operations}
+"#
+    );
+    serde_yaml::from_str(&source).unwrap()
+}
+
+#[test]
+fn target_operations_release_their_channel_after_their_range() {
+    // look_at then pan: the pan must accumulate on top of the held look-at yaw.
+    let project = single_shot(
+        r#"
+            - range: { start: 0, end: 24 }
+              operation: { op: look_at, target: { type: subject, id: a } }
+            - range: { start: 24, end: 48 }
+              operation: { op: pan, degrees: 30.0 }
+"#,
+    );
+    let solved = solve_project(&project, &SolveOptions::default())
+        .unwrap()
+        .solved;
+    let frames = &solved.scenes[0].shots[0].frames;
+    let held = frames[23].rotation_deg.yaw;
+    assert!(
+        held.abs() < 1e-3,
+        "camera on axis: look_at yaw ≈ 0, got {held}"
+    );
+    assert!(
+        (frames[47].rotation_deg.yaw - (held + 30.0)).abs() < 1e-2,
+        "pan must add 30° after look_at: {}",
+        frames[47].rotation_deg.yaw
+    );
+
+    // orbit then dolly: distance must shrink by the full dolly amount.
+    let project = single_shot(
+        r#"
+            - range: { start: 0, end: 24 }
+              operation: { op: orbit, target: { type: subject, id: a }, azimuth_deg: 90.0 }
+            - range: { start: 24, end: 48 }
+              operation: { op: dolly, distance_m: 1.0 }
+"#,
+    );
+    let solved = solve_project(&project, &SolveOptions::default())
+        .unwrap()
+        .solved;
+    let frames = &solved.scenes[0].shots[0].frames;
+    let aim = Vec3::new(0.0, 1.75 * 0.9, 0.0);
+    let after_orbit = distance(frames[23].position, aim);
+    let after_dolly = distance(frames[47].position, aim);
+    assert!(
+        (after_orbit - after_dolly - 1.0).abs() < 0.02,
+        "dolly must move 1.0 m closer after the orbit: {after_orbit} -> {after_dolly}"
+    );
+}
+
+#[test]
+fn whole_shot_operation_reaches_its_declared_value() {
+    let project = single_shot(
+        r#"
+            - range: { start: 0, end: 48 }
+              easing: linear
+              operation: { op: dolly, distance_m: 1.0 }
+"#,
+    );
+    let solved = solve_project(&project, &SolveOptions::default())
+        .unwrap()
+        .solved;
+    let frames = &solved.scenes[0].shots[0].frames;
+    let travelled = distance(frames[0].position, frames[47].position);
+    assert!((travelled - 1.0).abs() < 1e-4, "{travelled}");
+
+    let project = single_shot(
+        r#"
+            - range: { start: 10, end: 11 }
+              operation: { op: pan, degrees: 15.0 }
+"#,
+    );
+    let solved = solve_project(&project, &SolveOptions::default())
+        .unwrap()
+        .solved;
+    let frames = &solved.scenes[0].shots[0].frames;
+    assert_eq!(frames[9].rotation_deg.yaw, 0.0);
+    assert!(
+        (frames[10].rotation_deg.yaw - 15.0).abs() < 1e-4,
+        "single-frame op snaps"
+    );
+    assert!((frames[47].rotation_deg.yaw - 15.0).abs() < 1e-4);
+}
+
+#[test]
+fn orbit_rotation_eases_in_with_the_position() {
+    let project = single_shot(
+        r#"
+            - range: { start: 0, end: 48 }
+              easing: linear
+              operation: { op: orbit, target: { type: point, position: { x: 2.0, y: 1.5, z: 0.0 } }, azimuth_deg: 180.0 }
+"#,
+    );
+    let solved = solve_project(&project, &SolveOptions::default())
+        .unwrap()
+        .solved;
+    let frames = &solved.scenes[0].shots[0].frames;
+    // Camera starts looking −Z while the centre is off to the right; the yaw
+    // must move gradually rather than snapping on the first frame.
+    let first_delta = (frames[1].rotation_deg.yaw - frames[0].rotation_deg.yaw).abs();
+    let total = (frames[47].rotation_deg.yaw - frames[0].rotation_deg.yaw).abs();
+    assert!(
+        first_delta < total / 10.0,
+        "first-frame yaw jump {first_delta} of {total}"
+    );
+}
+
+#[test]
+fn handheld_noise_ramps_in_and_out() {
+    let project = single_shot(
+        r#"
+            - range: { start: 12, end: 36 }
+              operation: { op: handheld_noise, translation_amplitude_m: 0.05, rotation_amplitude_deg: 1.0, frequency_hz: 2.0, seed: 3 }
+"#,
+    );
+    let solved = solve_project(&project, &SolveOptions::default())
+        .unwrap()
+        .solved;
+    let frames = &solved.scenes[0].shots[0].frames;
+    let base = Vec3::new(0.0, 1.5, 4.0);
+    let first = distance(frames[12].position, base);
+    let peak = frames[12..36]
+        .iter()
+        .map(|f| distance(f.position, base))
+        .fold(0.0, f32::max);
+    assert!(
+        first < peak * 0.5,
+        "noise must ramp in: first {first}, peak {peak}"
+    );
+    assert_eq!(frames[36].position, base, "noise stops after the range");
+}
+
+#[test]
+fn initial_transform_is_the_implicit_first_keyframe() {
+    let source = r#"
+schema_version: "0.1"
+id: blocking
+title: Blocking
+frame_rate: { numerator: 24 }
+scenes:
+  - id: s
+    title: S
+    duration_frames: 48
+    subjects:
+      - id: walker
+        name: Walker
+        kind: character
+        initial_transform: { position: { x: 0.0, y: 0.0, z: 0.0 } }
+    blocking:
+      - subject_id: walker
+        keyframes:
+          - { frame: 24, transform: { position: { x: 2.0, y: 0.0, z: 0.0 } } }
+          - { frame: 48, transform: { position: { x: 2.0, y: 0.0, z: -4.0 } } }
+    shots:
+      - id: only
+        range: { start: 0, end: 48 }
+        framing: { shot_size: medium, subject_ids: [walker] }
+        camera:
+          initial_state:
+            transform: { position: { x: 0.0, y: 1.5, z: 6.0 } }
+"#;
+    let project: CineProject = serde_yaml::from_str(source).unwrap();
+    let track = &solve_project(&project, &SolveOptions::default())
+        .unwrap()
+        .solved
+        .scenes[0]
+        .subjects[0];
+    assert_eq!(
+        track.transforms[0].position,
+        Vec3::ZERO,
+        "starts at initial_transform"
+    );
+    assert!(
+        (track.transforms[12].position.x - 1.0).abs() < 1e-4,
+        "halfway to the first key"
+    );
+    assert!((track.transforms[24].position.x - 2.0).abs() < 1e-4);
+    // A boundary keyframe at frame == duration is approached, never reached.
+    let last = track.transforms[47].position;
+    assert!((last.z - (-4.0 * 23.0 / 24.0)).abs() < 1e-3, "{last:?}");
+    assert_eq!(track.cues.len(), 2, "synthetic frame-0 key adds no cue");
+}
+
+#[test]
+fn centimetre_documents_solve_like_metre_documents() {
+    let metres = load_project(example("dialogue.yaml")).unwrap();
+    let mut value: serde_yaml::Value = serde_yaml::to_value(&metres).unwrap();
+    fn scale_positions(v: &mut serde_yaml::Value) {
+        match v {
+            serde_yaml::Value::Mapping(map) => {
+                let keys: Vec<_> = map.keys().cloned().collect();
+                for key in keys {
+                    let name = key.as_str().unwrap_or("").to_owned();
+                    let child = map.get_mut(&key).unwrap();
+                    if name == "position" || name == "delta" || name == "offset" {
+                        if let serde_yaml::Value::Mapping(p) = child {
+                            for axis in ["x", "y", "z"] {
+                                let k = serde_yaml::Value::from(axis);
+                                if let Some(n) = p.get(&k).and_then(|n| n.as_f64()) {
+                                    p.insert(k, serde_yaml::Value::from(n * 100.0));
+                                }
+                            }
+                        }
+                    } else {
+                        scale_positions(child);
+                    }
+                }
+            }
+            serde_yaml::Value::Sequence(items) => items.iter_mut().for_each(scale_positions),
+            _ => {}
+        }
+    }
+    scale_positions(&mut value);
+    value["coordinate_system"]["units"] = "centimeters".into();
+    let centimetres: CineProject = serde_yaml::from_value(value).unwrap();
+
+    let a = solve_project(&metres, &SolveOptions::default())
+        .unwrap()
+        .solved;
+    let b = solve_project(&centimetres, &SolveOptions::default())
+        .unwrap()
+        .solved;
+    assert_eq!(
+        b.coordinate_system.units,
+        cinematography_ir::Unit::Meters,
+        "solved output is metres"
+    );
+    for (sa, sb) in a.scenes.iter().zip(&b.scenes) {
+        for (ta, tb) in sa.subjects.iter().zip(&sb.subjects) {
+            assert_eq!(
+                ta.dimensions_m, tb.dimensions_m,
+                "dimensions are metres by contract"
+            );
+            for (x, y) in ta.transforms.iter().zip(&tb.transforms) {
+                assert!(distance(x.position, y.position) < 1e-3);
+            }
+        }
+        for (xa, xb) in sa.shots.iter().zip(&sb.shots) {
+            for (fa, fb) in xa.frames.iter().zip(&xb.frames) {
+                assert!(
+                    distance(fa.position, fb.position) < 1e-3,
+                    "{} vs {}",
+                    fa.frame,
+                    fb.frame
+                );
+                assert!((fa.focal_length_mm - fb.focal_length_mm).abs() < 1e-3);
+                assert!((fa.rotation_deg.yaw - fb.rotation_deg.yaw).abs() < 1e-2);
+            }
+        }
+    }
+}

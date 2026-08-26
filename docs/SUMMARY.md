@@ -15,4 +15,5 @@
 - [12. IR 字段与 YAML 示例](12-ir-reference.md)
 - [13. 验证、诊断与失败模式](13-validation.md)
 - [14. Agent、求解器与执行器](14-agent-compiler.md)
+- [15. 条件信号流水线：solve / prompt / view / execute](15-conditioning-pipeline.md)
 - [附录：术语与概念边界](appendix-glossary.md)

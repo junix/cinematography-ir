@@ -1,0 +1,38 @@
+a_side - f0------------------------++----------------------------------+
+|                                  || +- -- -- -- -- -- -- -- -- -- --+|
+|                                  || |  A      .           .         ||
+|                                  ||    O                             |
+|                                  |aaaaaaaaaaaa. . . . . . . . . . . ||
+|                                  |aaaaaaaaaaaa     ---              ||
+|                                  |aaaaaaaaaaaa.     |     .          |
+|                                  |aaaaaaaaaaaa. . . . . . . . . . . ||
+|          relation axis           |aaaaaaaaaaaa.           .         ||
+|         A==>=======<==B          |aaaaaaaaaaaa                       |
+|                                  |aCU 50mm f/2.8  a ->---------------+
+|         A             B          |
+|          .    .                  |
+|           .  .                   |
+|            . .                   |
+|            ..                    |
+|             C                    |
+|               a_side - CU 50mm   |
++----------------------------------+
+b_wrong_side - f48
++----------------------------------++----------------------------------+
+|                     ! CONTINUITY_EYELINB_MISMATCH                   ||
+|                    C             ||    O      .           .          |
+|                   .. b_wrong_side - CU 50mmbbb. . . . . . . . . . . ||
+|                   . .            |bbbbbbbbbbbb.     |     .         ||
+|                  .  .            |bbbbbbbbbbbb     ---               |
+|                 .    .           |bbbbbbbbbbbb. . . . . . . . . . . ||
+|                                  |bbbbbbbbbbbb                      ||
+|          relation axis           |bbbbbbbbbbbb.           .          |
+|         A==>=======<==B          |bCU 50mm f/2.8  b ->-- -- -- -- --+|
+|         A             B          |bbbbbbbbbbbb-----------------------+
+|                                  |
+|                                  |
+|                                  |
+|                                  |
+|                                  |
+|                                  |
++----------------------------------+

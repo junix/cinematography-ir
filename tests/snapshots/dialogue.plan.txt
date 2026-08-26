@@ -1,0 +1,58 @@
+master_two_shot - f0---------------++----------------------------------+
+|                                  ||.+..-..-..-..-..-..-..-..-..-..-..|
+|   Alice-Bob relationship axis    || |         .           .         ||
+|        A=:>:=:=x=Room center     ||                                  |
+|      Alice            Bob        || | Alice . . . . . . . . . Bob . ||
+|                                  || |   O          ---       bbObb  ||
+|              Table               ||   aaaaa   .     |     .  bbbbb   |
+|                                  || | aaaaa . . . . . . . . .bbbbb. ||
+|                                  || | aaaaa ttttttTablettttttbbbbb  ||
+|                                  ||   aaaaa tttttttttttttttttbbbbb   |
+|                                  |+MLS 40mm f/4.0  alice ->  bob <---+
+|                                  |
+|             .     .              |
+|              .   .               |
+|               . .                |
+|               . .                |
+|                C                 |
+|                  master_two_shot - MLS 40mm
++----------------------------------+
+alice_close_up - f80
++----------------------------------++----------------------------------+
+|   Alice-Bob relationship axis    || |---                    .    ---||
+|        A=:>:=:=x=Room center     ||     ->    Alice       .   <--    |
+|                                  || | . . . . . O . . . . . . . . . ||
+|      Alice            Bob        || |     aaaaaaaaaaaaa   . .       ||
+|             .Table               ||       aaaaaaaaaaaaa              |
+|         .   .                    || | . . aaaaaaaaaaaaa . . . . . . ||
+|          .  .                    || |   ->aaaaaaaaaaaaa     . <--   ||
+|           ...                    ||  ---  aaaaaaaaaaaaa   .      --- |
+|             C                    ||CU 65mm f/2.8  alice ->- .- -- --+|
+|               alice_close_up - CU 65mm----aaaaaaaaaaaaa--------------+
+|                                  |
+|                                  |
+|                                  |
+|                                  |
+|                                  |
+|                                  |
++----------------------------------+
+                 ^
+bob_close_up - f160----------------++----------------------------------+
+|   Alice-Bob relationship axis    ||.+..-..-..-..-..-..-.Bob.-..-..-..|
+|        A=:>:=:=x=Room center     || |         .   bbbbbbbbbbbbbbb   ||
+|                                  || . . . . . . . bbbbbbbbbbbbbbb . .|
+|      Alice            Bob        || |       . .   bbbbbbbbbbbbbbb   ||
+|                    .             || |             bbbbbbbbbbbbbbb   ||
+|              Table .  .          ||         . .   bbbbbbbbbbbbbbb    |
+|                    . .           || | . . . . . . bbbbbbbbbbbbbbb . ||
+|                    ..            || |         .   bbbbbbbbbbbbbbb   ||
+|                    C             ||         .     bbbbbbbbbbbbbbb    |
+|                      bob_close_up -CU 75mm f/2.8  bob <-bbbbbbbbb----+
+|                                  |
+|                                  |
+|                                  |
+|                                  |
+|                                  |
+|                                  |
+|                                  |
++----------------------------------+

@@ -7,8 +7,8 @@ use crate::model::CineProject;
 
 pub fn load_project(path: impl AsRef<Path>) -> Result<CineProject> {
     let path = path.as_ref();
-    let text = fs::read_to_string(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let text =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
 
     match path
         .extension()

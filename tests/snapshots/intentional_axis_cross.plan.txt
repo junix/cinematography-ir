@@ -1,0 +1,58 @@
+side_positive - f0-----------------++----------------------------------+
+|                                  || +- -- -- -- -- -- -- -- -- -- --+|
+|                                  || |         .           .         ||
+|                                  ||  A                            B  |
+|                                  || |O. . . . . . . . . . . . . . O ||
+|                                  |aaaaaaa          ---         bbbbbbb
+|                                  |aaaaaaa     .     |     .    bbbbbbb
+|                                  |aaaaaaa . . . . . . . . . . .bbbbbbb
+|       ^A-B axis^                 |aaaaaaa     .           .    bbbbbbb
+|       A========B                 |aaaaaaa                      bbbbbbb
+|                                  |aMS 50mm f/2.8---------------bbbbbbb
+|       A        B                 |
+|                                  |
+|         .    .                   |
+|          .  .                    |
+|           . .                    |
+|            C                     |
+|              side_positive - MS 50mm
++----------------------------------+
+visible_cross - f60
++----------------------------------++----------------------------------+
+|                                  || |                               ||
+|            <-----                ||  A        .|          .       B  |
+|                  \--             || |O. . . . .-. . . . . . . . . O ||
+|                     \            |aaaaaaa     .  ---|->   .    bbbbbbb
+|                      --          |aaaaaaa          ---         bbbbbbb
+|                        \         |aaaaaaa . . . . . . . . . . .bbbbbbb
+|                         \        |aaaaaaa                      bbbbbbb
+|       ^A-B axis^        |        |aaaaaaa     .           .    bbbbbbb
+|       A========B        |        |aMS 50mm f/2.8-- -- -- -- -- bbbbbbb
+|       A        B        |        |aaaaaaa----------------------bbbbbbb
+|                        /         |
+|         .    .        /          |
+|          .  .        /           |
+|           . .     --/            |
+|            C-----/               |
+|              visible_cross - MS 50mm
++----------------------------------+
+
+side_negative - f120---------------++----------------------------------+
+|                                  || +- -- -- -- -- -- -- -- -- -- --+|
+|            C                     || |         .           .         ||
+|           . .side_negative - MCU 50mmB. . . . . . . . . . . . . . A .|
+|          .  .                    |bbbObbb     .           .    aaaOaaa
+|         .    .                   |bbbbbbb          ---         aaaaaaa
+|                                  |bbbbbbb     .           .    aaaaaaa
+|                                  |bbbbbbb . . . . . . . . . . .aaaaaaa
+|       ^A-B axis^                 |bbbbbbb     .           .    aaaaaaa
+|       A========B                 |bbbbbbb                      aaaaaaa
+|       A        B                 |bMCU 50mm f/2.8--------------aaaaaaa
+|                                  |
+|                                  |
+|                                  |
+|                                  |
+|                                  |
+|                                  |
+|                                  |
++----------------------------------+

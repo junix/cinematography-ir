@@ -4,7 +4,8 @@
 
 - 多章节中文 mdBook：系统介绍景别、构图、镜头、景深、曝光、运镜、场面调度、连续性、灯光、Coverage 与视觉叙事；
 - Rust 数据模型：YAML / JSON 序列化与 JSON Schema 生成；
-- `cine-ir` CLI：`validate`、`analyze`、`inspect`、`normalize`、`schema`；
+- `cine-ir` CLI：`validate`、`analyze`、`inspect`、`normalize`、`schema`、`solve`、`prompt`、`view`、`render blender`、`compare`；
+- 条件信号流水线（ADR-1115）：语义运镜求解为逐帧 Solved Camera IR，再分别产出文本 prompt、俯视/画面白模图（svg / png / ascii / html 动画 / markdown）与 Blender 多通道条件序列（depth / normal / id / vector / openpose）；
 - 连续性分析：180° 轴线、银幕方向、互反视线、30° 小角度切换；
 - 正确、故意越轴、错误越轴与 Dolly Zoom 示例；
 - 单元测试和可扩展的 backend/compiler 边界。
@@ -34,7 +35,12 @@ Continuity Constraints
   轴线 / 银幕方向 / 视线 / 30° / 跨轴桥接
           |
           v
-Renderer / DCC / Virtual Production Adapter
+Solved Camera IR (cine-ir solve)
+          |
+   +------+-----------+----------------+
+   v                  v                v
+prompt            view (纯)        execute (Blender)
+文本条件           plan/frame 图     depth/normal/id/... 通道
 ```
 
 只保存 `position(t)`、`rotation(t)` 和 `focal_length(t)` 会丢失镜头为何存在、为何移动、跨轴是否故意、拉焦在转移什么注意力等信息。因此核心 IR 同时保留高层语义与低层参数。
@@ -53,16 +59,25 @@ cinematography-ir/
 │   ├── unsafe_axis_cross.yaml
 │   └── dolly_zoom.yaml
 ├── schema/
+├── profiles/prompt/generic.json  # prompt 方言（IR 枚举 → 摄影词汇）
+├── assets/fonts/               # PNG 编码内嵌字体（Liberation Sans, OFL）
 ├── src/
 │   ├── model.rs                # IR 类型
 │   ├── validate.rs             # 结构与语义验证
 │   ├── analyze.rs              # 连续性分析
+│   ├── math.rs                 # 坐标系感知的基向量 / 旋转 / 投影数学
+│   ├── palette.rs              # 主体确定性配色
+│   ├── solve/                  # 语义运镜 → 逐帧 Solved Camera IR + 几何诊断
+│   ├── prompt/                 # 文本 prompt 槽（方言 profile）
+│   ├── view/                   # 纯视图层：Canvas → svg / png / ascii / html / markdown
+│   ├── execute/blender/        # Blender bpy 脚本生成与多通道导出
+│   ├── compare.rs              # 估计轨迹 vs 求解意图（闭环测量）
 │   ├── diagnostic.rs
 │   ├── io.rs
 │   ├── report.rs
 │   ├── lib.rs
 │   └── main.rs
-└── tests/validation.rs
+└── tests/                      # validation / solve / prompt / view（含 ASCII 快照）/ execute / compare
 ```
 
 ## 使用
@@ -80,6 +95,19 @@ cargo run -- schema --output schema/cinematography-ir.schema.json
 
 ```bash
 cargo run -- validate examples/unsafe_axis_cross.yaml --json
+```
+
+条件信号流水线（详见 `docs/15-conditioning-pipeline.md`）：
+
+```bash
+cargo run -- solve examples/dolly_zoom.yaml -o /tmp/dz.json          # 逐帧 Solved Camera IR
+cargo run -- prompt examples/dialogue.yaml --shot alice_close_up     # 文本 prompt
+cargo run -- view examples/dialogue.yaml --format ascii --layout strip:v
+cargo run -- view examples/dialogue.yaml --format png -o /tmp/dialogue.png
+cargo run -- view examples/dialogue.yaml --intent conditioning --layout separate --format png -o /tmp/cond/
+cargo run -- view examples/dolly_zoom.yaml --layout animate:12 --format html -o /tmp/previz.html
+cargo run -- render blender examples/dialogue.yaml --out-dir /tmp/passes --passes depth,normal,id --script-only
+cargo run -- compare examples/dialogue.yaml estimate.json --align similarity
 ```
 
 构建教材：
@@ -136,13 +164,14 @@ operations:
 
 ## 明确限制
 
-当前版本是规划 IR 与静态分析器，不是完整摄影物理模拟器。尚未实现：
+当前版本是规划 IR、静态分析器与 draft 精度的运动学求解器，不是完整摄影物理模拟器。尚未实现：
 
 - 光学畸变、T-stop、镜头呼吸和真实镜头数据库；
-- 景深、遮挡、碰撞、构图和可见性的几何求解；
+- 碰撞、遮挡、相机动力学限制与约束求解（`--fidelity full`）；
 - 多机位同步拍摄与多轨编辑；
-- 从几何自动推导轴线侧、银幕方向和视线；
-- 将语义运镜烘焙为逐帧相机轨迹；
-- Blender / Unreal / Three.js / USD 适配器。
+- 从几何自动推导银幕方向和视线（轴线侧已可推导并与声明值交叉校验）；
+- `dolly_zoom.keep_subject_frame_fraction` 的精确求解；
+- Unreal / Three.js / USD 适配器（Blender 已有；本机无 Blender，真实 `bpy` 运行未在本机验证）；
+- 从生成视频估计相机轨迹的估计器（`compare` 只实现比对的一半）。
 
-这些应位于 compiler/solver/backend 层，而不是继续膨胀核心交换格式。
+明确不做：角色外观身份保真（白模只需可区分，由下游另一模型负责）；视图层加载任何资产。这些应位于 compiler/solver/backend 层，而不是继续膨胀核心交换格式。

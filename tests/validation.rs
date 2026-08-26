@@ -21,15 +21,12 @@ fn dialogue_example_is_clean() {
 
 #[test]
 fn intentional_axis_cross_is_bridged() {
-    let project =
-        load_project(example("intentional_axis_cross.yaml")).expect("example must parse");
+    let project = load_project(example("intentional_axis_cross.yaml")).expect("example must parse");
     let report = validate_project(&project);
-    assert!(
-        !report
-            .diagnostics
-            .iter()
-            .any(|item| item.code == "CONTINUITY_AXIS_CROSS")
-    );
+    assert!(!report
+        .diagnostics
+        .iter()
+        .any(|item| item.code == "CONTINUITY_AXIS_CROSS"));
     assert!(!report.has_errors());
 }
 
@@ -38,18 +35,14 @@ fn unsafe_axis_cross_is_reported() {
     let project = load_project(example("unsafe_axis_cross.yaml")).expect("example must parse");
     let report = validate_project(&project);
 
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|item| item.code == "CONTINUITY_AXIS_CROSS")
-    );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|item| item.code == "CONTINUITY_EYELINE_MISMATCH")
-    );
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|item| item.code == "CONTINUITY_AXIS_CROSS"));
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|item| item.code == "CONTINUITY_EYELINE_MISMATCH"));
     assert!(!report.has_errors());
 }
 
@@ -140,4 +133,29 @@ scenes:
         .diagnostics
         .iter()
         .any(|item| item.code == "CAMERA_OPERATION_RANGE_INVALID"));
+}
+
+#[test]
+fn parallel_forward_and_up_axes_are_rejected() {
+    let source = r#"
+schema_version: "0.1"
+id: zup
+title: Z-up without a forward axis
+frame_rate: { numerator: 24 }
+coordinate_system: { up_axis: z }
+scenes: []
+"#;
+    let project: CineProject = serde_yaml::from_str(source).unwrap();
+    let report = validate_project(&project);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "COORDINATE_SYSTEM_AXES_PARALLEL" && d.severity == Severity::Error));
+
+    let fixed = source.replace("{ up_axis: z }", "{ up_axis: z, forward_axis: positive_y }");
+    let project: CineProject = serde_yaml::from_str(&fixed).unwrap();
+    assert!(!validate_project(&project)
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "COORDINATE_SYSTEM_AXES_PARALLEL"));
 }

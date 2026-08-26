@@ -135,11 +135,12 @@ Agent 不应未经授权修改故事事实、生产安全约束或导演锁定�
 ## 14.7 Backend 边界
 
 ```rust,ignore
-trait CinematographyBackend {
-    fn bake_camera_plan(&self, shot: &Shot) -> Result<BakedCamera>;
-    fn apply_lighting(&self, setup: &LightingSetup) -> Result<()>;
-    fn render_preview(&self, range: FrameRange) -> Result<PreviewArtifact>;
+// src/execute/mod.rs
+trait CinematographyAdapter {
+    fn apply_scene(&mut self, project: &SolvedProject, scene: &SolvedScene) -> Result<()>;
+    fn render_passes(&mut self, range: Option<FrameRange>, passes: &[ConditioningPass], out_dir: &Path)
+        -> Result<PassOutput>;
 }
 ```
 
-Backend 负责坐标变换、单位、关键帧 API、镜头模型和资源绑定；核心 IR 不导入 Blender 或 Unreal 类型。
+烘焙（语义运镜 → 逐帧状态）不在适配器内，而在共享的 `solve` 层：适配器只消费 `SolvedProject`，因此 Blender 与未来的 USD / Unreal 对 `dolly_zoom` 的解释不可能分叉。`render_passes` 导出的是条件通道（depth / normal / id / vector / openpose / beauty），不是成片；纯视图层的动词是 `render_view`，与此互不混用。Backend 负责坐标变换、单位、关键帧 API、镜头模型和资源绑定；核心 IR 不导入 Blender 或 Unreal 类型。

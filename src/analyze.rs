@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use crate::diagnostic::{Diagnostic, ValidationReport};
-use crate::model::{
-    AxisSide, HorizontalDirection, Scene, ScreenDirection, Shot, Transition,
-};
+use crate::model::{AxisSide, HorizontalDirection, Scene, ScreenDirection, Shot, Transition};
 
 pub fn analyze_continuity(scene: &Scene) -> ValidationReport {
     let mut report = ValidationReport::default();
@@ -22,12 +20,7 @@ pub fn analyze_continuity(scene: &Scene) -> ValidationReport {
     report
 }
 
-fn analyze_axis_cross(
-    scene: &Scene,
-    previous: &Shot,
-    next: &Shot,
-    report: &mut ValidationReport,
-) {
+fn analyze_axis_cross(scene: &Scene, previous: &Shot, next: &Shot, report: &mut ValidationReport) {
     let previous_sides: HashMap<&str, AxisSide> = previous
         .continuity
         .axis_observations
@@ -81,9 +74,13 @@ fn analyze_screen_direction(
             continue;
         };
 
-        let reverses = matches!(previous_direction, ScreenDirection::Left | ScreenDirection::Right)
-            && matches!(observation.direction, ScreenDirection::Left | ScreenDirection::Right)
-            && *previous_direction != observation.direction;
+        let reverses = matches!(
+            previous_direction,
+            ScreenDirection::Left | ScreenDirection::Right
+        ) && matches!(
+            observation.direction,
+            ScreenDirection::Left | ScreenDirection::Right
+        ) && *previous_direction != observation.direction;
 
         if reverses
             && !previous.continuity.direction_change_visible

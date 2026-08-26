@@ -7,8 +7,18 @@ scenes:
     title: "空间方向突然翻转"
     duration_frames: 96
     subjects:
-      - { id: a, name: A, kind: character }
-      - { id: b, name: B, kind: character }
+      - id: a
+        name: A
+        kind: character
+        initial_transform:
+          position: { x: -1.0, y: 0.0, z: 0.0 }
+          rotation_deg: { pitch: 0.0, yaw: -90.0, roll: 0.0 }
+      - id: b
+        name: B
+        kind: character
+        initial_transform:
+          position: { x: 1.0, y: 0.0, z: 0.0 }
+          rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
     axes:
       - id: relation
         name: relation axis
@@ -27,7 +37,7 @@ scenes:
           rig: tripod
           initial_state:
             transform:
-              position: { x: -0.5, y: 1.5, z: -2.0 }
+              position: { x: -0.5, y: 1.5, z: 2.0 }
             focus:
               target: { type: subject, id: a }
         continuity:
@@ -49,7 +59,7 @@ scenes:
           rig: tripod
           initial_state:
             transform:
-              position: { x: 0.5, y: 1.5, z: 2.0 }
+              position: { x: 0.5, y: 1.5, z: -2.0 }
               rotation_deg: { pitch: 0.0, yaw: 180.0, roll: 0.0 }
             focus:
               target: { type: subject, id: b }

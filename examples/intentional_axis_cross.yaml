@@ -38,7 +38,7 @@ scenes:
           rig: gimbal
           initial_state:
             transform:
-              position: { x: 0.0, y: 1.5, z: -3.0 }
+              position: { x: 0.0, y: 1.5, z: 3.0 }
             focus:
               target: { type: point, position: { x: 0.0, y: 1.4, z: 0.0 } }
         continuity:
@@ -56,7 +56,7 @@ scenes:
           rig: gimbal
           initial_state:
             transform:
-              position: { x: 0.0, y: 1.5, z: -3.0 }
+              position: { x: 0.0, y: 1.5, z: 3.0 }
             focus:
               target: { type: point, position: { x: 0.0, y: 1.4, z: 0.0 } }
           operations:
@@ -84,7 +84,7 @@ scenes:
           rig: tripod
           initial_state:
             transform:
-              position: { x: 0.0, y: 1.5, z: 3.0 }
+              position: { x: 0.0, y: 1.5, z: -3.0 }
               rotation_deg: { pitch: 0.0, yaw: 180.0, roll: 0.0 }
             focus:
               target: { type: point, position: { x: 0.0, y: 1.4, z: 0.0 } }

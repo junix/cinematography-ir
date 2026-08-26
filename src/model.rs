@@ -34,6 +34,24 @@ impl FrameRate {
     }
 }
 
+/// World coordinate conventions carried by every document.
+///
+/// Orientation semantics derived from these axes (used by the solver, views,
+/// and adapters — never assume a backend's convention):
+///
+/// * A camera or subject with identity `rotation_deg` looks along
+///   `forward_axis` with `up_axis` as its up vector. Its right vector is
+///   `forward × up` for right-handed systems and `up × forward` for
+///   left-handed systems.
+/// * `yaw` rotates about `up_axis`, `pitch` about the right vector, `roll`
+///   about `forward_axis`; rotations compose as yaw, then pitch, then roll.
+/// * Positive rotations follow the physical right-hand rule about those
+///   vectors in every system, so `+yaw` always turns toward the camera's left
+///   and `+pitch` always tilts up regardless of which axes are chosen. This
+///   deliberately differs from Unity's Euler angles (which are left-hand-rule
+///   in its left-handed frame); adapters importing or exporting Unity data
+///   must negate the angles.
+/// * `forward_axis` must not be parallel to `up_axis` (validated).
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct CoordinateSystem {
@@ -149,8 +167,15 @@ pub struct Subject {
     pub id: String,
     pub name: String,
     pub kind: SubjectKind,
+    /// `position` is the subject's base point (ground contact for characters,
+    /// vehicles, and props), not its centre. Blocking keyframes use the same
+    /// convention.
     #[serde(default)]
     pub initial_transform: Transform,
+    /// Bounding size in the subject's local space, in metres, independent of
+    /// `coordinate_system.up_axis`: `x` = width (left–right), `y` = height
+    /// (base to top), `z` = depth (front–back). When absent, solvers and views
+    /// substitute a per-`kind` default (e.g. 0.5 × 1.75 × 0.35 for characters).
     #[serde(default)]
     pub dimensions_m: Option<Vec3>,
     #[serde(default)]
@@ -528,12 +553,24 @@ pub struct TimedCameraOperation {
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CameraOperation {
     Hold,
-    Pan { degrees: f32 },
-    Tilt { degrees: f32 },
-    Roll { degrees: f32 },
-    Dolly { distance_m: f32 },
-    Truck { distance_m: f32 },
-    Pedestal { distance_m: f32 },
+    Pan {
+        degrees: f32,
+    },
+    Tilt {
+        degrees: f32,
+    },
+    Roll {
+        degrees: f32,
+    },
+    Dolly {
+        distance_m: f32,
+    },
+    Truck {
+        distance_m: f32,
+    },
+    Pedestal {
+        distance_m: f32,
+    },
     Translate {
         delta: Vec3,
         #[serde(default)]
@@ -544,7 +581,9 @@ pub enum CameraOperation {
         #[serde(default)]
         space: TransformSpace,
     },
-    LookAt { target: TargetRef },
+    LookAt {
+        target: TargetRef,
+    },
     Orbit {
         target: TargetRef,
         azimuth_deg: f32,
@@ -564,7 +603,9 @@ pub enum CameraOperation {
         #[serde(default)]
         look_at: Option<TargetRef>,
     },
-    Zoom { to_focal_length_mm: f32 },
+    Zoom {
+        to_focal_length_mm: f32,
+    },
     RackFocus {
         target: TargetRef,
         #[serde(default)]

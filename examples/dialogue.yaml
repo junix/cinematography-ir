@@ -26,20 +26,20 @@ scenes:
         kind: character
         initial_transform:
           position: { x: -1.5, y: 0.0, z: 0.0 }
-          rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
+          rotation_deg: { pitch: 0.0, yaw: -90.0, roll: 0.0 }
         dimensions_m: { x: 0.5, y: 1.7, z: 0.4 }
       - id: bob
         name: Bob
         kind: character
         initial_transform:
           position: { x: 1.5, y: 0.0, z: 0.0 }
-          rotation_deg: { pitch: 0.0, yaw: -90.0, roll: 0.0 }
+          rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
         dimensions_m: { x: 0.5, y: 1.8, z: 0.4 }
       - id: table
         name: Table
         kind: prop
         initial_transform:
-          position: { x: 0.0, y: 0.4, z: 0.0 }
+          position: { x: 0.0, y: 0.0, z: 0.0 }
         dimensions_m: { x: 2.0, y: 0.8, z: 0.9 }
     markers:
       - id: room_center
@@ -57,13 +57,13 @@ scenes:
           - frame: 0
             transform:
               position: { x: -1.5, y: 0.0, z: 0.0 }
-              rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: -90.0, roll: 0.0 }
             gaze_target: { type: subject, id: bob }
             action: "坐着，保持克制"
           - frame: 240
             transform:
               position: { x: -1.5, y: 0.0, z: 0.0 }
-              rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: -90.0, roll: 0.0 }
             gaze_target: { type: subject, id: bob }
             action: "停顿后直视 Bob"
       - subject_id: bob
@@ -71,13 +71,13 @@ scenes:
           - frame: 0
             transform:
               position: { x: 1.5, y: 0.0, z: 0.0 }
-              rotation_deg: { pitch: 0.0, yaw: -90.0, roll: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
             gaze_target: { type: subject, id: alice }
             action: "身体前倾"
           - frame: 240
             transform:
               position: { x: 1.5, y: 0.0, z: 0.0 }
-              rotation_deg: { pitch: 0.0, yaw: -90.0, roll: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
             gaze_target: { type: subject, id: alice }
             action: "继续逼问"
     beats:
@@ -114,7 +114,7 @@ scenes:
             kind: area
             role: fill
             transform:
-              position: { x: 0.0, y: 1.8, z: -3.0 }
+              position: { x: 0.0, y: 1.8, z: 3.0 }
             intensity_lux: 160.0
             color_temperature_k: 5000
             motivated_by: "门缝环境光"
@@ -138,7 +138,7 @@ scenes:
           rig: tripod
           initial_state:
             transform:
-              position: { x: 0.0, y: 1.45, z: -5.2 }
+              position: { x: 0.0, y: 1.45, z: 5.2 }
             lens:
               focal_length_mm: 40.0
               aperture_f: 4.0
@@ -179,8 +179,8 @@ scenes:
           rig: dolly
           initial_state:
             transform:
-              position: { x: -0.65, y: 1.48, z: -2.7 }
-              rotation_deg: { pitch: 0.0, yaw: -14.0, roll: 0.0 }
+              position: { x: -0.65, y: 1.48, z: 2.7 }
+              rotation_deg: { pitch: 0.0, yaw: 14.0, roll: 0.0 }
             lens:
               focal_length_mm: 65.0
               aperture_f: 2.8
@@ -223,8 +223,8 @@ scenes:
           rig: tripod
           initial_state:
             transform:
-              position: { x: 0.65, y: 1.38, z: -2.65 }
-              rotation_deg: { pitch: -2.0, yaw: 14.0, roll: 0.0 }
+              position: { x: 0.65, y: 1.38, z: 2.65 }
+              rotation_deg: { pitch: -2.0, yaw: -14.0, roll: 0.0 }
             lens:
               focal_length_mm: 75.0
               aperture_f: 2.8

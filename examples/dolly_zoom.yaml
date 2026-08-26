@@ -19,7 +19,7 @@ scenes:
         name: Corridor
         kind: environment
         initial_transform:
-          position: { x: 0.0, y: 0.0, z: 4.0 }
+          position: { x: 0.0, y: 0.0, z: -4.0 }
     shots:
       - id: realization_push
         range: { start: 0, end: 120 }
@@ -40,7 +40,7 @@ scenes:
           rig: dolly
           initial_state:
             transform:
-              position: { x: 0.0, y: 1.55, z: -4.5 }
+              position: { x: 0.0, y: 1.55, z: 4.5 }
             lens:
               focal_length_mm: 50.0
               aperture_f: 4.0

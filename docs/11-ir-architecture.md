@@ -50,16 +50,17 @@ operation:
 执行层需要把它编译为逐帧 `CameraState`。编译依赖 blocking、碰撞体、相机动力学、构图约束和 backend 坐标系。
 
 ```text
-Cinematography IR     semantic source
+Cinematography IR     semantic source            src/model.rs
        |
        v
-Solved Camera IR      sampled/baked result
+Solved Camera IR      sampled/baked result       src/solve/  (`cine-ir solve`)
        |
-       v
-Backend Adapter       Blender/Unreal/USD/etc.
+       +---> prompt   text conditioning          src/prompt/ (`cine-ir prompt`)
+       +---> view     plan/frame canvases        src/view/   (`cine-ir view`)
+       +---> execute  Blender passes             src/execute/(`cine-ir render blender`)
 ```
 
-把逐帧轨迹直接放进核心 IR 会导致文件巨大、意图丢失、人物路径变化后轨迹失效、不同执行器无法重新求解。
+把逐帧轨迹直接放进核心 IR 会导致文件巨大、意图丢失、人物路径变化后轨迹失效、不同执行器无法重新求解。`SolvedProject` 是可重建的编译产物：适配器与动画预览都只消费它，从不各自解释 `CameraOperation`。分层细节见第 15 章与 ADR-1115。
 
 ## 11.4 时间域
 
