@@ -1,0 +1,19 @@
+reveal_and_rise - f0-^-------------++-------rrrffffffffffffffff--------+
+|                                  ||.+..-..ReaForeground Column.-..-..|
+|                                  || |     rrrffffffffffffffff       ||
+|                    R             ||       rrrffffffffffffffff        |
+|                                  || | . . rrrffffffffffffffff . . . ||
+|                    xVisitor eye line|     rrrffffVisitorfffff       ||
+|             Rear Wall Frame      ||       rrrffffffffffffffff        |
+|                   :              || | . . . .ffffffffffffffff . . . ||
+|                                  || |        ffffffffffffffff       ||
+|                ^:                ||          ffffffffffffffff        |
+|                F                 |+MLS 42mm f/2.8ffffffffffff--------+
+|                :                 |
+|        Foreground Column         |
+|            . : .                 |
+|             ...                  |
+|             C-\   >              |
+|               reveal_and_rise - MLS 42mm
+|                                  |
++----------------------------------+

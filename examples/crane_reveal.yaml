@@ -1,0 +1,159 @@
+schema_version: "0.1"
+id: crane_reveal_example
+title: "展厅揭示：横移、拉焦与升降"
+frame_rate: { numerator: 24, denominator: 1 }
+coordinate_system:
+  units: meters
+  handedness: right
+  up_axis: y
+  forward_axis: negative_z
+metadata:
+  example_focus: "reveal + rack_focus + crane.look_at"
+scenes:
+  - id: gallery_reveal
+    title: "柱后的人"
+    duration_frames: 192
+    narrative:
+      dramatic_question: "柱后站着的是等待者还是威胁？"
+      themes: ["遮挡", "发现", "权力"]
+      desired_audience_state: ["先注意前景柱体，再通过横移和拉焦发现人物"]
+      emotional_arc:
+        - { frame: 0, label: "未知", valence: -0.25, arousal: 0.35 }
+        - { frame: 72, label: "显露", valence: -0.4, arousal: 0.7 }
+        - { frame: 168, label: "俯视确认", valence: -0.15, arousal: 0.5 }
+    subjects:
+      - id: visitor
+        name: Visitor
+        kind: character
+        initial_transform:
+          position: { x: 0.0, y: 0.0, z: 0.0 }
+          rotation_deg: { pitch: 0.0, yaw: 180.0, roll: 0.0 }
+        dimensions_m: { x: 0.55, y: 1.8, z: 0.42 }
+      - id: column
+        name: Foreground Column
+        kind: prop
+        initial_transform:
+          position: { x: -1.0, y: 0.0, z: 3.0 }
+        dimensions_m: { x: 0.9, y: 2.4, z: 0.9 }
+      - id: wall_frame
+        name: Rear Wall Frame
+        kind: prop
+        initial_transform:
+          position: { x: 0.0, y: 1.4, z: -1.4 }
+        dimensions_m: { x: 2.8, y: 2.2, z: 0.16 }
+    markers:
+      - id: visitor_eye_line
+        name: Visitor eye line
+        position: { x: 0.0, y: 1.62, z: 0.0 }
+    blocking:
+      - subject_id: visitor
+        keyframes:
+          - frame: 0
+            transform:
+              position: { x: 0.0, y: 0.0, z: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: 180.0, roll: 0.0 }
+            gaze_target: { type: point, position: { x: -2.0, y: 1.3, z: 6.0 } }
+            action: "静止站在柱后，注视摄影机方向"
+          - frame: 192
+            transform:
+              position: { x: 0.0, y: 0.0, z: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: 180.0, roll: 0.0 }
+            gaze_target: { type: point, position: { x: -0.3, y: 3.3, z: 5.2 } }
+            action: "保持静止，让摄影机完成揭示"
+    beats:
+      - id: foreground_attention
+        range: { start: 0, end: 48 }
+        intent: "先把注意力放在前景柱体"
+        emphasis: medium
+        subject_ids: [column]
+      - id: reveal_visitor
+        range: { start: 48, end: 96 }
+        intent: "横移越过柱体并把焦点交给 Visitor"
+        emphasis: high
+        subject_ids: [visitor, column]
+      - id: rise_and_confirm
+        range: { start: 96, end: 192 }
+        intent: "升高机位形成更冷静的空间确认"
+        emphasis: high
+        subject_ids: [visitor, wall_frame]
+    lighting_setups:
+      - id: gallery_pool
+        name: "展厅聚光与墙面反射"
+        contrast_ratio: 5.0
+        sources:
+          - id: visitor_spot
+            kind: spot
+            role: key
+            transform:
+              position: { x: 1.2, y: 3.8, z: 1.5 }
+              rotation_deg: { pitch: -50.0, yaw: -20.0, roll: 0.0 }
+            intensity_lux: 850.0
+            color_temperature_k: 4800
+            motivated_by: "展品轨道灯"
+          - id: wall_fill
+            kind: area
+            role: fill
+            transform:
+              position: { x: -2.5, y: 2.0, z: -0.5 }
+            intensity_lux: 140.0
+            color_temperature_k: 5600
+            motivated_by: "白墙反射"
+    shots:
+      - id: reveal_and_rise
+        range: { start: 0, end: 192 }
+        purpose: [reveal, identify, emphasize]
+        coverage_role: single
+        framing:
+          shot_size: medium_long
+          horizontal_angle: three_quarter
+          vertical_angle: low
+          subject_ids: [visitor]
+          composition:
+            strategy: frame_within_frame
+            headroom: 0.10
+            negative_space: right
+            depth_layers:
+              - { name: occluding_column, role: foreground, subject_ids: [column] }
+              - { name: revealed_visitor, role: midground, subject_ids: [visitor] }
+              - { name: rear_frame, role: background, subject_ids: [wall_frame] }
+            notes:
+              - "柱体在初始视线中遮挡 Visitor，横移后形成框中框。"
+        camera:
+          rig: crane
+          initial_state:
+            transform:
+              position: { x: -2.0, y: 1.30, z: 6.0 }
+              rotation_deg: { pitch: 2.9, yaw: -18.4, roll: 0.0 }
+            lens:
+              focal_length_mm: 42.0
+              sensor_width_mm: 36.0
+              aperture_f: 2.8
+            focus:
+              target: { type: subject, id: column }
+              distance_m: 3.2
+            exposure:
+              iso: 640
+              shutter_angle_deg: 180.0
+              white_balance_k: 5000
+          operations:
+            - range: { start: 0, end: 72 }
+              easing: ease_in_out
+              operation:
+                op: reveal
+                target: { type: subject, id: visitor }
+                occluder: { type: subject, id: column }
+                lateral_distance_m: 1.8
+            - range: { start: 24, end: 72 }
+              easing: smooth_step
+              operation:
+                op: rack_focus
+                target: { type: subject, id: visitor }
+            - range: { start: 72, end: 168 }
+              easing: ease_in_out
+              operation:
+                op: crane
+                delta: { x: 0.0, y: 2.0, z: -0.8 }
+                look_at: { type: subject, id: visitor }
+        lighting_setup_id: gallery_pool
+        notes:
+          - "draft solver 使用 occluder 作为揭示语义，但暂不计算真实遮挡边界。"

@@ -61,7 +61,9 @@ cinematography-ir/
 │   ├── intentional_axis_cross.yaml
 │   ├── unsafe_axis_cross.yaml
 │   ├── dolly_zoom.yaml
-│   └── jaws_beach_dolly_zoom.yaml  # 8 秒经典镜头研究：主体稳定、背景压缩
+│   ├── jaws_beach_dolly_zoom.yaml  # 8 秒经典镜头研究：主体稳定、背景压缩
+│   ├── follow_handheld.yaml        # 移动 blocking + 跟拍 + 手持扰动 + 变焦
+│   └── crane_reveal.yaml           # 遮挡揭示 + 拉焦 + 升降
 ├── schema/
 ├── profiles/prompt/generic.json  # prompt 方言（IR 枚举 → 摄影词汇）
 ├── assets/fonts/               # PNG 编码内嵌字体（Liberation Sans, OFL）
@@ -135,6 +137,20 @@ cargo run -- render blender examples/jaws_beach_dolly_zoom.yaml \
 ```
 
 验收判据：0–2 秒建立稳定空间，2–7 秒 dolly-out + zoom-in，7–8 秒停住；Observer 的投影尺度近似不变，两个 background beachgoer 明显向画面边缘扩张。`tests/solve.rs` 对主体尺度、相机距离、焦段方向和背景扩张分别做量化回归。
+
+### 运镜组合示例：跟拍与揭示
+
+`follow_handheld.yaml` 用移动 blocking 驱动 `follow`，再叠加带 seed 的 `handheld_noise` 和后半程 zoom；`crane_reveal.yaml` 把前景遮挡物、`reveal`、`rack_focus` 与 `crane.look_at` 编排在一个连续镜头中。两者都能通过同一份 IR 生成纯 `view` 表示与 Blender execute 脚本：
+
+```bash
+cargo run -- view examples/follow_handheld.yaml --layout animate:12 --format html -o /tmp/follow.html
+cargo run -- render blender examples/follow_handheld.yaml --out-dir /tmp/follow-passes --passes depth,normal,id --script-only
+
+cargo run -- view examples/crane_reveal.yaml --format png -o /tmp/reveal.png
+cargo run -- render blender examples/crane_reveal.yaml --out-dir /tmp/reveal-passes --passes depth,normal,id,openpose --script-only
+```
+
+`reveal.occluder` 当前保留遮挡语义，但 draft solver 不计算真实遮挡边界；这项限制在示例的 `notes` 中显式声明。
 
 构建教材：
 

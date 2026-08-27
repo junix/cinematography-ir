@@ -1,0 +1,156 @@
+schema_version: "0.1"
+id: follow_handheld_example
+title: "夜巷追随：移动走位、跟拍与手持扰动"
+frame_rate: { numerator: 24, denominator: 1 }
+coordinate_system:
+  units: meters
+  handedness: right
+  up_axis: y
+  forward_axis: negative_z
+metadata:
+  example_focus: "blocking + follow + handheld_noise + zoom"
+scenes:
+  - id: alley_pursuit
+    title: "跑向巷口"
+    duration_frames: 144
+    narrative:
+      dramatic_question: "Runner 能否在追逐者出现前抵达巷口？"
+      themes: ["追逐", "不稳定", "迫近"]
+      desired_audience_state: ["保持人物可辨认，同时让手持扰动增加紧迫感"]
+      emotional_arc:
+        - { frame: 0, label: "起跑", valence: -0.2, arousal: 0.55 }
+        - { frame: 72, label: "加速", valence: -0.45, arousal: 0.85 }
+        - { frame: 132, label: "逼近出口", valence: -0.1, arousal: 0.95 }
+    subjects:
+      - id: runner
+        name: Runner
+        kind: character
+        initial_transform:
+          position: { x: 0.0, y: 0.0, z: 0.0 }
+          rotation_deg: { pitch: 0.0, yaw: 0.0, roll: 0.0 }
+        dimensions_m: { x: 0.55, y: 1.72, z: 0.42 }
+      - id: alley_exit
+        name: Alley Exit
+        kind: environment
+        initial_transform:
+          position: { x: 0.5, y: 0.0, z: -10.0 }
+        dimensions_m: { x: 3.2, y: 2.8, z: 0.25 }
+    markers:
+      - id: finish_mark
+        name: Finish mark
+        position: { x: 0.5, y: 0.0, z: -8.0 }
+    blocking:
+      - subject_id: runner
+        keyframes:
+          - frame: 0
+            transform:
+              position: { x: 0.0, y: 0.0, z: 0.0 }
+              rotation_deg: { pitch: 0.0, yaw: 0.0, roll: 0.0 }
+            gaze_target: { type: marker, id: finish_mark }
+            action: "从巷道中央起跑"
+          - frame: 72
+            transform:
+              position: { x: 1.0, y: 0.0, z: -4.0 }
+              rotation_deg: { pitch: 0.0, yaw: -14.0, roll: 0.0 }
+            gaze_target: { type: marker, id: finish_mark }
+            action: "向右避开障碍并加速"
+          - frame: 144
+            transform:
+              position: { x: 0.5, y: 0.0, z: -8.0 }
+              rotation_deg: { pitch: 0.0, yaw: 7.0, roll: 0.0 }
+            gaze_target: { type: marker, id: finish_mark }
+            action: "回到巷口中心线"
+    beats:
+      - id: establish_chase
+        range: { start: 0, end: 72 }
+        intent: "建立 Runner、摄影机与巷口的追随关系"
+        emphasis: high
+        subject_ids: [runner, alley_exit]
+      - id: compress_distance
+        range: { start: 72, end: 144 }
+        intent: "焦段收紧，强化 Runner 被追近的压力"
+        emphasis: climax
+        subject_ids: [runner]
+    lighting_setups:
+      - id: sodium_alley
+        name: "钠灯巷道与冷色出口"
+        contrast_ratio: 6.0
+        sources:
+          - id: overhead_practical
+            kind: practical
+            role: motivated
+            transform:
+              position: { x: 0.0, y: 3.2, z: -3.5 }
+            intensity_lux: 520.0
+            color_temperature_k: 3200
+            motivated_by: "巷道顶灯"
+          - id: exit_backlight
+            kind: area
+            role: back
+            transform:
+              position: { x: 0.5, y: 2.2, z: -9.5 }
+            intensity_lux: 780.0
+            color_temperature_k: 6500
+            motivated_by: "巷口环境光"
+    shots:
+      - id: handheld_follow
+        range: { start: 0, end: 144 }
+        purpose: [subjective, connect, emphasize]
+        coverage_role: single
+        framing:
+          shot_size: medium_long
+          horizontal_angle: rear
+          vertical_angle: eye_level
+          subject_ids: [runner]
+          composition:
+            strategy: centered
+            headroom: 0.08
+            depth_layers:
+              - { name: runner_layer, role: midground, subject_ids: [runner] }
+              - { name: exit_layer, role: background, subject_ids: [alley_exit] }
+            notes:
+              - "追随偏移使用世界空间；摄影机保持在 Runner 身后。"
+        camera:
+          rig: handheld
+          initial_state:
+            transform:
+              position: { x: 0.0, y: 1.72, z: 4.5 }
+              rotation_deg: { pitch: -2.4, yaw: 0.0, roll: 0.0 }
+            lens:
+              focal_length_mm: 35.0
+              sensor_width_mm: 36.0
+              aperture_f: 2.8
+            focus:
+              target: { type: subject, id: runner }
+              distance_m: 4.5
+            exposure:
+              iso: 1600
+              shutter_angle_deg: 144.0
+              white_balance_k: 4000
+          operations:
+            - range: { start: 0, end: 144 }
+              easing: linear
+              operation:
+                op: follow
+                target: { type: subject, id: runner }
+                offset: { x: 0.0, y: 0.20, z: 4.5 }
+                damping: 0.18
+            - range: { start: 12, end: 132 }
+              easing: linear
+              operation:
+                op: handheld_noise
+                translation_amplitude_m: 0.035
+                rotation_amplitude_deg: 0.75
+                frequency_hz: 2.4
+                seed: 20260826
+            - range: { start: 72, end: 120 }
+              easing: ease_in_out
+              operation:
+                op: zoom
+                to_focal_length_mm: 45.0
+        lighting_setup_id: sodium_alley
+        continuity:
+          screen_directions:
+            - { subject_id: runner, direction: away_from_camera }
+        notes:
+          - "follow 求解基础轨迹；handheld_noise 只作为确定性输出叠加层。"

@@ -80,6 +80,8 @@ fn every_example_solves_deterministically() {
         "unsafe_axis_cross.yaml",
         "dolly_zoom.yaml",
         "jaws_beach_dolly_zoom.yaml",
+        "follow_handheld.yaml",
+        "crane_reveal.yaml",
     ] {
         let first = solve(name);
         let second = solve(name);
@@ -394,6 +396,64 @@ scenes:
             .x
     }
     assert!((sample(24) - sample(60)).abs() < 0.02);
+}
+
+#[test]
+fn follow_handheld_tracks_the_runner_and_finishes_the_zoom() {
+    let solved = solve("follow_handheld.yaml");
+    let scene = &solved.scenes[0];
+    let runner = scene.subject("runner").unwrap();
+    let shot = scene.shot("handheld_follow").unwrap();
+    let first = &shot.frames[0];
+    let last = shot.frames.last().unwrap();
+
+    assert!(
+        last.position.z < first.position.z - 7.5,
+        "camera must follow the runner down the alley: {:?} -> {:?}",
+        first.position,
+        last.position
+    );
+    let runner_aim = runner.transforms.last().unwrap().position
+        + Vec3::new(0.0, runner.dimensions_m.y * 0.9, 0.0);
+    let follow_distance = distance(last.position, runner_aim);
+    assert!(
+        (follow_distance - 4.5).abs() < 0.15,
+        "follow offset must settle near 4.5 m: {follow_distance}"
+    );
+    assert!((last.focal_length_mm - 45.0).abs() < 1e-3);
+    assert_eq!(shot.frames[120].focal_length_mm, last.focal_length_mm);
+}
+
+#[test]
+fn crane_reveal_moves_clear_racks_focus_and_rises() {
+    let solved = solve("crane_reveal.yaml");
+    let shot = solved.scenes[0].shot("reveal_and_rise").unwrap();
+    let first = &shot.frames[0];
+    let revealed = &shot.frames[71];
+    let raised = &shot.frames[167];
+    let last = shot.frames.last().unwrap();
+
+    assert!(
+        revealed.position.x > first.position.x + 1.6,
+        "reveal must clear the foreground column: {:?} -> {:?}",
+        first.position,
+        revealed.position
+    );
+    assert!(
+        revealed.focus_distance_m.unwrap() > first.focus_distance_m.unwrap() + 3.0,
+        "rack focus must move from the column to the visitor"
+    );
+    assert!(
+        raised.position.y > revealed.position.y + 1.9,
+        "crane must rise by two metres: {:?} -> {:?}",
+        revealed.position,
+        raised.position
+    );
+    assert_eq!(
+        raised.position, last.position,
+        "camera holds after the crane"
+    );
+    assert_eq!(raised.rotation_deg, last.rotation_deg);
 }
 
 #[test]

@@ -51,6 +51,8 @@ fn every_example_shot_gets_a_clean_prompt() {
         "unsafe_axis_cross.yaml",
         "dolly_zoom.yaml",
         "jaws_beach_dolly_zoom.yaml",
+        "follow_handheld.yaml",
+        "crane_reveal.yaml",
     ] {
         let all = prompts(name, &PromptOptions::default());
         assert!(!all.is_empty(), "{name}");

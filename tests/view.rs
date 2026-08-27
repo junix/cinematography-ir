@@ -47,12 +47,14 @@ fn render(name: &str, request: &ViewRequest) -> Vec<cinematography_ir::ViewArtif
     render_view(&project, request).unwrap()
 }
 
-const EXAMPLES: [&str; 5] = [
+const EXAMPLES: [&str; 7] = [
     "dialogue.yaml",
     "intentional_axis_cross.yaml",
     "unsafe_axis_cross.yaml",
     "dolly_zoom.yaml",
     "jaws_beach_dolly_zoom.yaml",
+    "follow_handheld.yaml",
+    "crane_reveal.yaml",
 ];
 
 #[test]
