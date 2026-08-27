@@ -39,6 +39,8 @@ pub struct Cell {
     pub title: String,
     pub plan: Option<Canvas>,
     pub frame: Option<Canvas>,
+    /// Semantic panels such as phase timelines, metrics, and elevation.
+    pub extras: Vec<Canvas>,
 }
 
 impl Cell {
@@ -48,6 +50,7 @@ impl Cell {
         let panels: Vec<&Canvas> = [self.plan.as_ref(), self.frame.as_ref()]
             .into_iter()
             .flatten()
+            .chain(self.extras.iter())
             .collect();
         let width: f32 = panels.iter().map(|p| p.width).sum::<f32>()
             + CELL_GAP * panels.len().saturating_sub(1) as f32;

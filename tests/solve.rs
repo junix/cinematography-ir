@@ -4,8 +4,8 @@ use cinematography_ir::math::Vec3;
 use cinematography_ir::solve::SolvedCameraFrame;
 use cinematography_ir::view::project::FrameProjection;
 use cinematography_ir::{
-    load_project, normalize_units, solve_project, CameraOperation, CineProject, Fidelity,
-    SolveError, SolveOptions, SolvedProject, TargetRef,
+    load_project, normalize_units, solve_project, CameraOperation, CameraRig, CineProject,
+    Fidelity, GeometryProxy, SolveError, SolveOptions, SolvedProject, TargetRef,
 };
 
 fn example(name: &str) -> PathBuf {
@@ -236,6 +236,72 @@ fn jaws_study_keeps_the_observer_stable_while_the_background_expands() {
         background_offset(before),
         background_offset(after)
     );
+}
+
+#[test]
+fn reveal_visibility_solves_lateral_travel_from_projected_occlusion() {
+    let source = r#"
+schema_version: "0.1"
+id: reveal
+title: Reveal
+frame_rate: { numerator: 24 }
+scenes:
+  - id: scene
+    title: Scene
+    duration_frames: 49
+    subjects:
+      - id: hero
+        name: Hero
+        kind: character
+        dimensions_m: { x: 0.5, y: 1.7, z: 0.4 }
+      - id: wall
+        name: Wall
+        kind: environment
+        dimensions_m: { x: 0.8, y: 1.9, z: 0.2 }
+        initial_transform: { position: { x: 0.0, y: 0.0, z: 2.0 } }
+        geometry_proxy: { kind: wall }
+    shots:
+      - id: reveal
+        range: { start: 0, end: 49 }
+        framing: { shot_size: medium, subject_ids: [hero] }
+        camera:
+          initial_state:
+            transform: { position: { x: 0.0, y: 1.45, z: 5.0 } }
+            lens: { focal_length_mm: 50.0 }
+          operations:
+            - range: { start: 0, end: 49 }
+              operation:
+                op: reveal
+                target: { type: subject, id: hero }
+                occluder: { type: subject, id: wall }
+                lateral_distance_m: 0.5
+                visibility: { from: 0.0, to: 0.8, monotonic: true }
+                preserve: { target_screen_y: 0.48 }
+"#;
+    let project: cinematography_ir::CineProject = serde_yaml::from_str(source).unwrap();
+    let compiled =
+        cinematography_ir::compile_project(&project, &cinematography_ir::CompileOptions::default())
+            .unwrap();
+    let shot = &compiled.compiled.scenes[0].shots[0];
+    let visible: Vec<_> = shot
+        .screen_track("hero")
+        .unwrap()
+        .frames
+        .iter()
+        .map(|frame| frame.visible_fraction)
+        .collect();
+    assert!(visible[0] < 0.15, "start visibility: {}", visible[0]);
+    assert!(
+        (visible[48] - 0.8).abs() < 0.08,
+        "end visibility: {}",
+        visible[48]
+    );
+    assert!(
+        visible.windows(2).all(|pair| pair[1] + 0.02 >= pair[0]),
+        "visibility should be monotonic: {visible:?}"
+    );
+    let y = shot.screen_track("hero").unwrap().frames[48].center.y;
+    assert!((y - 0.48).abs() < 0.04, "preserved y: {y}");
 }
 
 #[test]
@@ -521,17 +587,59 @@ fn axis_side_declarations_match_geometry_in_every_example() {
 }
 
 #[test]
-fn invalid_documents_and_full_fidelity_are_rejected() {
+fn full_fidelity_runs_and_invalid_documents_are_rejected() {
     let mut project = load_project(example("dialogue.yaml")).unwrap();
-    match solve_project(
+    let full = solve_project(
         &project,
         &SolveOptions {
             fidelity: Fidelity::Full,
         },
-    ) {
-        Err(SolveError::FidelityUnsupported(Fidelity::Full)) => {}
-        other => panic!("expected fidelity error, got {other:?}"),
-    }
+    )
+    .unwrap();
+    assert_eq!(full.solved.fidelity, Fidelity::Full);
+    assert_eq!(full.solved.scenes[0].shots.len(), 3);
+
+    let mut locked = single_shot(
+        "            - range: { start: 0, end: 48 }\n              operation: { op: dolly, distance_m: 2.0 }",
+    );
+    locked.scenes[0].shots[0].camera.rig = CameraRig::Locked;
+    let locked = solve_project(
+        &locked,
+        &SolveOptions {
+            fidelity: Fidelity::Full,
+        },
+    )
+    .unwrap();
+    let frames = &locked.solved.scenes[0].shots[0].frames;
+    assert!(
+        distance(frames[0].position, frames[47].position) < 1e-5,
+        "a locked rig must reject translational camera motion"
+    );
+
+    let mut collision = single_shot(
+        "            - range: { start: 0, end: 48 }\n              operation: { op: hold }",
+    );
+    collision.scenes[0].subjects[0].geometry_proxy = Some(GeometryProxy::Box);
+    collision.scenes[0].shots[0]
+        .camera
+        .initial_state
+        .transform
+        .position = Vec3::new(0.0, 0.875, 0.0);
+    let collision = solve_project(
+        &collision,
+        &SolveOptions {
+            fidelity: Fidelity::Full,
+        },
+    )
+    .unwrap();
+    assert!(collision
+        .report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "CAMERA_COLLISION_RESOLVED"));
+    let camera = collision.solved.scenes[0].shots[0].frames[0].position;
+    assert!(distance(camera, Vec3::new(0.0, 0.875, 0.0)) > 0.9);
+
     project.scenes[0].shots[0]
         .framing
         .subject_ids

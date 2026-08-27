@@ -10,6 +10,7 @@
 
 pub mod analyze;
 pub mod compare;
+pub mod compiled;
 pub mod diagnostic;
 pub mod execute;
 pub mod io;
@@ -23,12 +24,18 @@ pub mod validate;
 pub mod view;
 
 pub use analyze::analyze_continuity;
+pub use compiled::*;
 pub use diagnostic::{Diagnostic, Severity, ValidationReport};
-pub use execute::{CinematographyAdapter, ConditioningPass, PassOutput};
+pub use execute::{
+    AdapterCapabilities, ChannelLayout, CinematographyAdapter, ColorSpace, ConditioningPass,
+    ExecutionBundle, ExecutionProfile, ExecutionRequest, PassKind, PassOutput, PassSpec,
+    PixelEncoding, VideoModelProfile,
+};
 pub use io::{load_project, save_project_json};
 pub use model::*;
 pub use prompt::{
-    emit_project_prompts, emit_shot_prompt, PromptDialect, PromptOptions, ShotPrompt,
+    emit_guidance_command, emit_project_prompts, emit_shot_prompt, PromptDialect, PromptOptions,
+    ShotPrompt,
 };
 pub use report::render_summary;
 pub use solve::{

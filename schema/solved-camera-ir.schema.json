@@ -1,0 +1,665 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SolvedProject",
+  "type": "object",
+  "required": [
+    "coordinate_system",
+    "fidelity",
+    "frame_rate",
+    "scenes",
+    "schema_version",
+    "source_id",
+    "source_schema_version",
+    "source_title"
+  ],
+  "properties": {
+    "coordinate_system": {
+      "$ref": "#/definitions/CoordinateSystem"
+    },
+    "fidelity": {
+      "$ref": "#/definitions/Fidelity"
+    },
+    "frame_rate": {
+      "$ref": "#/definitions/FrameRate"
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/SolvedScene"
+      }
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "source_id": {
+      "type": "string"
+    },
+    "source_schema_version": {
+      "type": "string"
+    },
+    "source_title": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "AxisName": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "z"
+      ]
+    },
+    "CoordinateSystem": {
+      "description": "World coordinate conventions carried by every document.\n\nOrientation semantics derived from these axes (used by the solver, views, and adapters — never assume a backend's convention):\n\n* A camera or subject with identity `rotation_deg` looks along `forward_axis` with `up_axis` as its up vector. Its right vector is `forward × up` for right-handed systems and `up × forward` for left-handed systems. * `yaw` rotates about `up_axis`, `pitch` about the right vector, `roll` about `forward_axis`; rotations compose as yaw, then pitch, then roll. * Positive rotations follow the physical right-hand rule about those vectors in every system, so `+yaw` always turns toward the camera's left and `+pitch` always tilts up regardless of which axes are chosen. This deliberately differs from Unity's Euler angles (which are left-hand-rule in its left-handed frame); adapters importing or exporting Unity data must negate the angles. * `forward_axis` must not be parallel to `up_axis` (validated).",
+      "type": "object",
+      "properties": {
+        "forward_axis": {
+          "default": "negative_z",
+          "allOf": [
+            {
+              "$ref": "#/definitions/SignedAxis"
+            }
+          ]
+        },
+        "handedness": {
+          "default": "right",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Handedness"
+            }
+          ]
+        },
+        "units": {
+          "default": "meters",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Unit"
+            }
+          ]
+        },
+        "up_axis": {
+          "default": "y",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AxisName"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "CoverageRole": {
+      "type": "string",
+      "enum": [
+        "master",
+        "two_shot",
+        "over_the_shoulder",
+        "single",
+        "close_up",
+        "point_of_view",
+        "reaction",
+        "insert",
+        "cutaway",
+        "detail",
+        "establishing",
+        "custom"
+      ]
+    },
+    "EulerDeg": {
+      "type": "object",
+      "properties": {
+        "pitch": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "roll": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "yaw": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Fidelity": {
+      "description": "How much physical fidelity the solver applies.",
+      "oneOf": [
+        {
+          "description": "Kinematic evaluation only: easing, look-at, orbit, follow, optics. No collision, no dynamics limits, no occlusion.",
+          "type": "string",
+          "enum": [
+            "draft"
+          ]
+        },
+        {
+          "description": "Constraint solving with collision and dynamics. Not yet implemented.",
+          "type": "string",
+          "enum": [
+            "full"
+          ]
+        }
+      ]
+    },
+    "FrameRange": {
+      "type": "object",
+      "required": [
+        "end",
+        "start"
+      ],
+      "properties": {
+        "end": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "start": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "FrameRate": {
+      "type": "object",
+      "required": [
+        "numerator"
+      ],
+      "properties": {
+        "denominator": {
+          "default": 1,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "numerator": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Handedness": {
+      "type": "string",
+      "enum": [
+        "left",
+        "right"
+      ]
+    },
+    "Rgb": {
+      "type": "object",
+      "required": [
+        "b",
+        "g",
+        "r"
+      ],
+      "properties": {
+        "b": {
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        },
+        "g": {
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        },
+        "r": {
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ShotPurpose": {
+      "type": "string",
+      "enum": [
+        "establish",
+        "orient",
+        "reveal",
+        "emphasize",
+        "observe",
+        "identify",
+        "connect",
+        "isolate",
+        "subjective",
+        "reaction",
+        "transition",
+        "disorient"
+      ]
+    },
+    "ShotSize": {
+      "type": "string",
+      "enum": [
+        "extreme_long",
+        "long",
+        "medium_long",
+        "medium",
+        "medium_close_up",
+        "close_up",
+        "extreme_close_up",
+        "insert",
+        "custom"
+      ]
+    },
+    "SignedAxis": {
+      "type": "string",
+      "enum": [
+        "positive_x",
+        "negative_x",
+        "positive_y",
+        "negative_y",
+        "positive_z",
+        "negative_z"
+      ]
+    },
+    "SolvedCameraFrame": {
+      "type": "object",
+      "required": [
+        "aperture_f",
+        "focal_length_mm",
+        "forward",
+        "frame",
+        "horizontal_fov_deg",
+        "position",
+        "right",
+        "rotation_deg",
+        "up"
+      ],
+      "properties": {
+        "aperture_f": {
+          "type": "number",
+          "format": "float"
+        },
+        "focal_length_mm": {
+          "type": "number",
+          "format": "float"
+        },
+        "focus_distance_m": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "focus_target": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TargetRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "forward": {
+          "description": "World-space unit vectors of the camera frame, so consumers never need to re-derive Euler conventions.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Vec3"
+            }
+          ]
+        },
+        "frame": {
+          "description": "Scene-local frame index.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "horizontal_fov_deg": {
+          "type": "number",
+          "format": "float"
+        },
+        "position": {
+          "$ref": "#/definitions/Vec3"
+        },
+        "right": {
+          "$ref": "#/definitions/Vec3"
+        },
+        "rotation_deg": {
+          "$ref": "#/definitions/EulerDeg"
+        },
+        "up": {
+          "$ref": "#/definitions/Vec3"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SolvedCue": {
+      "type": "object",
+      "required": [
+        "frame"
+      ],
+      "properties": {
+        "action": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "frame": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "gaze_target": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TargetRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "SolvedScene": {
+      "type": "object",
+      "required": [
+        "duration_frames",
+        "id",
+        "shots",
+        "subjects",
+        "title"
+      ],
+      "properties": {
+        "duration_frames": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "id": {
+          "type": "string"
+        },
+        "shots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SolvedShot"
+          }
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SolvedSubjectTrack"
+          }
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SolvedShot": {
+      "type": "object",
+      "required": [
+        "coverage_role",
+        "frames",
+        "id",
+        "purpose",
+        "range",
+        "sensor_width_mm",
+        "shot_size",
+        "subject_ids"
+      ],
+      "properties": {
+        "coverage_role": {
+          "$ref": "#/definitions/CoverageRole"
+        },
+        "frames": {
+          "description": "`frames[i]` is the camera at scene frame `range.start + i`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SolvedCameraFrame"
+          }
+        },
+        "id": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShotPurpose"
+          }
+        },
+        "range": {
+          "description": "Scene-local, half-open.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/FrameRange"
+            }
+          ]
+        },
+        "sensor_width_mm": {
+          "type": "number",
+          "format": "float"
+        },
+        "shot_size": {
+          "$ref": "#/definitions/ShotSize"
+        },
+        "subject_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SolvedSubjectTrack": {
+      "description": "One subject sampled at every scene frame.",
+      "type": "object",
+      "required": [
+        "color",
+        "color_name",
+        "cues",
+        "dimensions_m",
+        "kind",
+        "name",
+        "subject_id",
+        "transforms"
+      ],
+      "properties": {
+        "color": {
+          "description": "Deterministic palette colour (ADR-1115 D10).",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Rgb"
+            }
+          ]
+        },
+        "color_name": {
+          "type": "string"
+        },
+        "cues": {
+          "description": "Non-geometric blocking cues (gaze, action text) in frame order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SolvedCue"
+          }
+        },
+        "dimensions_m": {
+          "description": "Resolved bounding size (width, height, depth) with kind defaults applied.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Vec3"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/definitions/SubjectKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "subject_id": {
+          "type": "string"
+        },
+        "transforms": {
+          "description": "`transforms[f]` is the subject's base transform at scene frame `f`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Transform"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SubjectKind": {
+      "type": "string",
+      "enum": [
+        "character",
+        "prop",
+        "vehicle",
+        "environment",
+        "screen",
+        "abstract"
+      ]
+    },
+    "TargetRef": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "type"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "subject"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "type"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "marker"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "position",
+            "type"
+          ],
+          "properties": {
+            "position": {
+              "$ref": "#/definitions/Vec3"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "point"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Transform": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "default": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Vec3"
+            }
+          ]
+        },
+        "rotation_deg": {
+          "default": {
+            "pitch": 0.0,
+            "roll": 0.0,
+            "yaw": 0.0
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/EulerDeg"
+            }
+          ]
+        },
+        "scale": {
+          "default": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Vec3"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Unit": {
+      "type": "string",
+      "enum": [
+        "meters",
+        "centimeters"
+      ]
+    },
+    "Vec3": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "z": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

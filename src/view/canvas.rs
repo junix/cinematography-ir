@@ -126,6 +126,11 @@ pub enum ArrowKind {
     Eyeline,
     /// Screen-space motion cue drawn on frame panels (dolly, pan, ...).
     MotionCue,
+    CameraCommand,
+    ImageMotion,
+    FocusCue,
+    OcclusionCue,
+    EditCue,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -236,6 +241,35 @@ pub enum CanvasItem {
         code: String,
         severity: Severity,
     },
+    Group {
+        opacity: f32,
+        z_index: i32,
+        clip: Option<Rect>,
+        items: Vec<CanvasItem>,
+    },
+    CubicPath {
+        from: Vec2,
+        control1: Vec2,
+        control2: Vec2,
+        to: Vec2,
+        color: Rgb,
+        width: f32,
+        arrow_head: bool,
+        kind: ArrowKind,
+    },
+    VectorField {
+        vectors: Vec<(Vec2, Vec2)>,
+        color: Rgb,
+        width: f32,
+        kind: ArrowKind,
+    },
+    EmbeddedImage {
+        rect: Rect,
+        mime_type: String,
+        data_base64: String,
+        opacity: f32,
+        z_index: i32,
+    },
 }
 
 impl CanvasItem {
@@ -249,7 +283,30 @@ impl CanvasItem {
             | CanvasItem::CameraWedge { label, .. }
             | CanvasItem::AxisLine { label, .. }
             | CanvasItem::Marker { label, .. } => label.is_some(),
+            CanvasItem::Group { items, .. } => items.iter().any(CanvasItem::carries_text),
             _ => false,
+        }
+    }
+
+    fn collect_text<'a>(&'a self, output: &mut Vec<&'a str>) {
+        match self {
+            CanvasItem::Text { content, .. } => output.push(content),
+            CanvasItem::Diagnostic { code, .. } => output.push(code),
+            CanvasItem::Glyph { label, .. }
+            | CanvasItem::Silhouette { label, .. }
+            | CanvasItem::CameraWedge { label, .. }
+            | CanvasItem::AxisLine { label, .. }
+            | CanvasItem::Marker { label, .. } => {
+                if let Some(label) = label {
+                    output.push(label);
+                }
+            }
+            CanvasItem::Group { items, .. } => {
+                for item in items {
+                    item.collect_text(output);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -276,8 +333,44 @@ impl CanvasItem {
                 *from = from.add(d);
                 *to = to.add(d);
             }
+            CanvasItem::Group { clip, items, .. } => {
+                if let Some(rect) = clip {
+                    *rect = rect.translate(d);
+                }
+                for child in items {
+                    *child = child.translated(d);
+                }
+            }
+            CanvasItem::CubicPath {
+                from,
+                control1,
+                control2,
+                to,
+                ..
+            } => {
+                *from = from.add(d);
+                *control1 = control1.add(d);
+                *control2 = control2.add(d);
+                *to = to.add(d);
+            }
+            CanvasItem::VectorField { vectors, .. } => {
+                for (from, to) in vectors {
+                    *from = from.add(d);
+                    *to = to.add(d);
+                }
+            }
+            CanvasItem::EmbeddedImage { rect, .. } => *rect = rect.translate(d),
         }
         item
+    }
+
+    pub fn z_index(&self) -> i32 {
+        match self {
+            CanvasItem::Group { z_index, .. } | CanvasItem::EmbeddedImage { z_index, .. } => {
+                *z_index
+            }
+            _ => 0,
+        }
     }
 }
 
@@ -329,8 +422,65 @@ impl Canvas {
         self.items.iter().filter(|i| i.carries_text()).count()
     }
 
+    pub fn text_content(&self) -> Vec<&str> {
+        let mut content = Vec::new();
+        for item in &self.items {
+            item.collect_text(&mut content);
+        }
+        content
+    }
+
     pub fn count(&self, predicate: impl Fn(&CanvasItem) -> bool) -> usize {
         self.items.iter().filter(|i| predicate(i)).count()
+    }
+
+    pub fn ordered_items(&self) -> Vec<&CanvasItem> {
+        let mut indexed: Vec<_> = self.items.iter().enumerate().collect();
+        indexed.sort_by_key(|(index, item)| (item.z_index(), *index));
+        indexed.into_iter().map(|(_, item)| item).collect()
+    }
+
+    /// Deterministic, bounded collision avoidance for review labels.
+    pub fn resolve_label_collisions(&mut self) {
+        let mut occupied: Vec<Rect> = Vec::new();
+        for item in &mut self.items {
+            let (at, width, height) = match item {
+                CanvasItem::Text {
+                    at, content, size, ..
+                } => (
+                    *at,
+                    content.chars().count() as f32 * *size * 0.58,
+                    *size * 1.2,
+                ),
+                CanvasItem::Silhouette {
+                    label: Some(label),
+                    label_at,
+                    ..
+                } => (*label_at, label.chars().count() as f32 * 5.8, 12.0),
+                _ => continue,
+            };
+            let original = Rect::new(
+                Vec2::new(at.x - width * 0.5, at.y - height),
+                Vec2::new(at.x + width * 0.5, at.y),
+            );
+            let mut candidate = original;
+            for _ in 0..12 {
+                if occupied
+                    .iter()
+                    .all(|other| candidate.intersect(other).is_none())
+                {
+                    break;
+                }
+                candidate = candidate.translate(Vec2::new(0.0, height + 2.0));
+            }
+            let delta = candidate.center().sub(original.center());
+            match item {
+                CanvasItem::Text { at, .. } => *at = at.add(delta),
+                CanvasItem::Silhouette { label_at, .. } => *label_at = label_at.add(delta),
+                _ => {}
+            }
+            occupied.push(candidate);
+        }
     }
 }
 

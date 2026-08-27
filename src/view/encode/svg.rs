@@ -121,7 +121,7 @@ fn rect(
     );
 }
 
-fn item(out: &mut String, entry: &CanvasItem, canvas: &Canvas) {
+fn render_item(out: &mut String, entry: &CanvasItem, canvas: &Canvas) {
     match entry {
         CanvasItem::Background { color } => {
             let _ = write!(
@@ -245,6 +245,7 @@ fn item(out: &mut String, entry: &CanvasItem, canvas: &Canvas) {
             label,
             label_at,
         } => {
+            out.push_str(r#"<g class="silhouette">"#);
             let (head, body) = silhouette_parts(*shape, *r);
             if let Some((c, radius)) = head {
                 let _ = write!(
@@ -278,6 +279,7 @@ fn item(out: &mut String, entry: &CanvasItem, canvas: &Canvas) {
                     false,
                 );
             }
+            out.push_str("</g>");
         }
         CanvasItem::CameraWedge {
             at,
@@ -332,14 +334,22 @@ fn item(out: &mut String, entry: &CanvasItem, canvas: &Canvas) {
                 .iter()
                 .map(|p| format!("{},{}", n(p.x), n(p.y)))
                 .collect();
-            let opacity = if *kind == ArrowKind::MotionCue && *width >= 3.0 {
+            let opacity = if matches!(
+                kind,
+                ArrowKind::MotionCue
+                    | ArrowKind::ImageMotion
+                    | ArrowKind::FocusCue
+                    | ArrowKind::OcclusionCue
+            ) && *width >= 3.0
+            {
                 r##" stroke-opacity="0.85""##
             } else {
                 ""
             };
             let _ = write!(
                 out,
-                r##"<polyline points="{}" fill="none" stroke="{}" stroke-width="{}" stroke-linecap="round" stroke-linejoin="round"{}{}/>"##,
+                r##"<polyline data-arrow-kind="{}" points="{}" fill="none" stroke="{}" stroke-width="{}" stroke-linecap="round" stroke-linejoin="round"{}{}/>"##,
+                arrow_kind_name(*kind),
                 path.join(" "),
                 color.hex(),
                 n(*width),
@@ -374,7 +384,7 @@ fn item(out: &mut String, entry: &CanvasItem, canvas: &Canvas) {
         }
         CanvasItem::Guide { kind, color } => {
             for line in guide_to_lines(*kind, canvas.bounds(), *color) {
-                item(out, &line, canvas);
+                render_item(out, &line, canvas);
             }
         }
         CanvasItem::Rect {
@@ -435,6 +445,131 @@ fn item(out: &mut String, entry: &CanvasItem, canvas: &Canvas) {
                 true,
             );
         }
+        CanvasItem::Group {
+            opacity,
+            clip,
+            items,
+            ..
+        } => {
+            let clip_id = clip.map(|rect| {
+                format!(
+                    "clip-{:016x}",
+                    crate::math::stable_hash(&format!(
+                        "{:.3}:{:.3}:{:.3}:{:.3}:{}",
+                        rect.min.x,
+                        rect.min.y,
+                        rect.max.x,
+                        rect.max.y,
+                        items.len()
+                    ))
+                )
+            });
+            if let (Some(rect), Some(id)) = (clip, clip_id.as_ref()) {
+                let _ = write!(
+                    out,
+                    r##"<defs><clipPath id="{id}"><rect x="{}" y="{}" width="{}" height="{}"/></clipPath></defs>"##,
+                    n(rect.min.x),
+                    n(rect.min.y),
+                    n(rect.width()),
+                    n(rect.height())
+                );
+            }
+            let clip_attr =
+                clip_id.map_or(String::new(), |id| format!(r##" clip-path="url(#{id})""##));
+            let _ = write!(
+                out,
+                r##"<g opacity="{}"{clip_attr}>"##,
+                n(opacity.clamp(0.0, 1.0))
+            );
+            let mut ordered: Vec<_> = items.iter().enumerate().collect();
+            ordered.sort_by_key(|(index, item)| (item.z_index(), *index));
+            for (_, child) in ordered {
+                render_item(out, child, canvas);
+            }
+            out.push_str("</g>");
+        }
+        CanvasItem::CubicPath {
+            from,
+            control1,
+            control2,
+            to,
+            color,
+            width,
+            arrow_head: head,
+            ..
+        } => {
+            let _ = write!(
+                out,
+                r##"<path d="M{} {} C{} {},{} {},{} {}" fill="none" stroke="{}" stroke-width="{}" stroke-linecap="round"/>"##,
+                n(from.x),
+                n(from.y),
+                n(control1.x),
+                n(control1.y),
+                n(control2.x),
+                n(control2.y),
+                n(to.x),
+                n(to.y),
+                color.hex(),
+                n(*width)
+            );
+            if *head {
+                arrow_head(out, *control2, *to, *color, (width * 3.0).max(6.0));
+            }
+        }
+        CanvasItem::VectorField {
+            vectors,
+            color,
+            width,
+            ..
+        } => {
+            for (from, to) in vectors {
+                let _ = write!(
+                    out,
+                    r##"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="{}" stroke-width="{}" stroke-linecap="round"/>"##,
+                    n(from.x),
+                    n(from.y),
+                    n(to.x),
+                    n(to.y),
+                    color.hex(),
+                    n(*width)
+                );
+                arrow_head(out, *from, *to, *color, (width * 3.0).max(4.0));
+            }
+        }
+        CanvasItem::EmbeddedImage {
+            rect,
+            mime_type,
+            data_base64,
+            opacity,
+            ..
+        } => {
+            let _ = write!(
+                out,
+                r##"<image x="{}" y="{}" width="{}" height="{}" opacity="{}" href="data:{};base64,{}" preserveAspectRatio="xMidYMid meet"/>"##,
+                n(rect.min.x),
+                n(rect.min.y),
+                n(rect.width()),
+                n(rect.height()),
+                n(opacity.clamp(0.0, 1.0)),
+                esc(mime_type),
+                data_base64
+            );
+        }
+    }
+}
+
+fn arrow_kind_name(kind: ArrowKind) -> &'static str {
+    match kind {
+        ArrowKind::CameraPath => "camera_path",
+        ArrowKind::SubjectPath => "subject_path",
+        ArrowKind::ScreenDirection => "screen_direction",
+        ArrowKind::Eyeline => "eyeline",
+        ArrowKind::MotionCue => "motion_cue",
+        ArrowKind::CameraCommand => "camera_command",
+        ArrowKind::ImageMotion => "image_motion",
+        ArrowKind::FocusCue => "focus_cue",
+        ArrowKind::OcclusionCue => "occlusion_cue",
+        ArrowKind::EditCue => "edit_cue",
     }
 }
 
@@ -449,8 +584,8 @@ pub fn canvas_to_svg(canvas: &Canvas) -> String {
         n(canvas.width),
         n(canvas.height)
     );
-    for i in &canvas.items {
-        item(&mut out, i, canvas);
+    for i in canvas.ordered_items() {
+        render_item(&mut out, i, canvas);
     }
     out.push_str("</svg>\n");
     out
@@ -466,8 +601,8 @@ pub fn canvas_to_inline_svg(canvas: &Canvas) -> String {
         n(canvas.width),
         n(canvas.height)
     );
-    for i in &canvas.items {
-        item(&mut out, i, canvas);
+    for i in canvas.ordered_items() {
+        render_item(&mut out, i, canvas);
     }
     out.push_str("</svg>");
     out

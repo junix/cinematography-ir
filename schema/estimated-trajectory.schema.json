@@ -1,0 +1,229 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EstimatedTrajectory",
+  "description": "Minimal trajectory an estimator must emit. Frames are scene-local and matched to the solved shot by `id` and `frame`.",
+  "type": "object",
+  "required": [
+    "shots"
+  ],
+  "properties": {
+    "cuts": {
+      "description": "Detected edit boundaries in scene-local frames.",
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0.0
+      }
+    },
+    "shots": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/EstimatedShot"
+      }
+    },
+    "source": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "EstimatedFrame": {
+      "type": "object",
+      "required": [
+        "frame",
+        "position"
+      ],
+      "properties": {
+        "focal_length_mm": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "forward": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Vec3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "frame": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "optical_flow": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ScreenPoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "position": {
+          "$ref": "#/definitions/Vec3"
+        },
+        "subjects": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EstimatedSubjectScreenFrame"
+          }
+        },
+        "up": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Vec3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "EstimatedShot": {
+      "type": "object",
+      "required": [
+        "frames",
+        "id"
+      ],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EstimatedFrame"
+          }
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EstimatedSubjectScreenFrame": {
+      "type": "object",
+      "required": [
+        "bbox",
+        "subject_id"
+      ],
+      "properties": {
+        "bbox": {
+          "$ref": "#/definitions/NormalizedRect"
+        },
+        "depth_m": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "focus_score": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "subject_id": {
+          "type": "string"
+        },
+        "visible_fraction": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "NormalizedRect": {
+      "type": "object",
+      "required": [
+        "max_x",
+        "max_y",
+        "min_x",
+        "min_y"
+      ],
+      "properties": {
+        "max_x": {
+          "type": "number",
+          "format": "float"
+        },
+        "max_y": {
+          "type": "number",
+          "format": "float"
+        },
+        "min_x": {
+          "type": "number",
+          "format": "float"
+        },
+        "min_y": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ScreenPoint": {
+      "type": "object",
+      "required": [
+        "x",
+        "y"
+      ],
+      "properties": {
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Vec3": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "z": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

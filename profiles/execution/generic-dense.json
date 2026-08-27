@@ -1,0 +1,113 @@
+{
+  "name": "generic_dense_control",
+  "model": {
+    "name": "generic_dense_control",
+    "supports_text_timeline": true,
+    "supports_start_end_frames": true,
+    "supports_dense_control_video": true,
+    "supports_depth": true,
+    "supports_pose": true,
+    "supports_segmentation": true,
+    "supports_camera_trajectory": true,
+    "supports_negative_prompt": true,
+    "maximum_frames": null
+  },
+  "passes": [
+    {
+      "kind": "beauty",
+      "encoding": "png8",
+      "color_space": "srgb",
+      "channels": "rgb",
+      "normalization": null,
+      "background_value": [0.0, 0.0, 0.0],
+      "file_pattern": "beauty/####.png"
+    },
+    {
+      "kind": "metric_depth",
+      "encoding": "exr32_float",
+      "color_space": "data",
+      "channels": "gray",
+      "normalization": null,
+      "background_value": [0.0],
+      "file_pattern": "depth_metric/####.exr"
+    },
+    {
+      "kind": "normalized_depth",
+      "encoding": "png16",
+      "color_space": "data",
+      "channels": "gray",
+      "normalization": {
+        "minimum": 0.1,
+        "maximum": 100.0,
+        "near_is_white": true
+      },
+      "background_value": [0.0],
+      "file_pattern": "depth/####.png"
+    },
+    {
+      "kind": "normal",
+      "encoding": "png16",
+      "color_space": "data",
+      "channels": "rgb",
+      "normalization": null,
+      "background_value": [0.5, 0.5, 0.5],
+      "file_pattern": "normal/####.png"
+    },
+    {
+      "kind": "subject_id",
+      "encoding": "png16",
+      "color_space": "data",
+      "channels": "rgb",
+      "normalization": null,
+      "background_value": [0.0, 0.0, 0.0],
+      "file_pattern": "id/####.png"
+    },
+    {
+      "kind": "optical_flow",
+      "encoding": "exr32_float",
+      "color_space": "data",
+      "channels": "xy",
+      "normalization": null,
+      "background_value": [0.0, 0.0],
+      "file_pattern": "vector/####.exr"
+    },
+    {
+      "kind": "pose_image",
+      "encoding": "png8",
+      "color_space": "srgb",
+      "channels": "rgb",
+      "normalization": null,
+      "background_value": [0.0, 0.0, 0.0],
+      "file_pattern": "openpose/####.png"
+    },
+    {
+      "kind": "occlusion",
+      "encoding": "png16",
+      "color_space": "data",
+      "channels": "gray",
+      "normalization": null,
+      "background_value": [0.0],
+      "file_pattern": "occlusion/####.png"
+    },
+    {
+      "kind": "camera",
+      "encoding": "json",
+      "color_space": "data",
+      "channels": "matrix",
+      "normalization": null,
+      "background_value": [],
+      "file_pattern": "metadata/camera.json"
+    },
+    {
+      "kind": "pose_keypoints",
+      "encoding": "json",
+      "color_space": "data",
+      "channels": "json_records",
+      "normalization": null,
+      "background_value": [],
+      "file_pattern": "metadata/pose.json"
+    }
+  ],
+  "resolution": [1024, 576],
+  "deterministic_seed": 42
+}

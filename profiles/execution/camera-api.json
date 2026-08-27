@@ -1,0 +1,28 @@
+{
+  "name": "generic_camera_api",
+  "model": {
+    "name": "generic_camera_api",
+    "supports_text_timeline": true,
+    "supports_start_end_frames": false,
+    "supports_dense_control_video": false,
+    "supports_depth": false,
+    "supports_pose": false,
+    "supports_segmentation": false,
+    "supports_camera_trajectory": true,
+    "supports_negative_prompt": true,
+    "maximum_frames": null
+  },
+  "passes": [
+    {
+      "kind": "camera",
+      "encoding": "json",
+      "color_space": "data",
+      "channels": "matrix",
+      "normalization": null,
+      "background_value": [],
+      "file_pattern": "metadata/camera.json"
+    }
+  ],
+  "resolution": [1024, 576],
+  "deterministic_seed": 42
+}

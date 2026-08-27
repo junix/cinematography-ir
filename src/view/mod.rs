@@ -7,6 +7,7 @@
 //! byte-identical artifacts.
 
 pub mod canvas;
+pub mod diagram;
 pub mod encode;
 pub mod layout;
 pub mod panel;
@@ -16,20 +17,28 @@ pub mod sample;
 use std::fmt;
 
 use crate::analyze::analyze_continuity;
+use crate::compiled::{compile_project, CompileError, CompileOptions, CompiledScene};
 use crate::diagnostic::Diagnostic;
 use crate::model::{CineProject, Scene};
 use crate::prompt::{emit_shot_prompt, PromptDialect, PromptOptions};
-use crate::solve::{solve_project, SolveError, SolveOptions, SolvedScene};
+use crate::solve::{SolveError, SolvedScene};
 
 pub use canvas::{Canvas, CanvasItem};
+pub use diagram::{shot_diagrams, DiagramItem};
 pub use layout::{Cell, Layout, StripAxis};
-pub use panel::{LabelMode, OverlaySet, PanelContext, PanelStyle, RenderIntent};
-pub use sample::{SamplePoint, Sampling};
+pub use panel::{
+    ControlProfile, CueScope, LabelMode, OverlaySet, PanelContext, PanelStyle, RenderIntent,
+    ViewIntent,
+};
+pub use sample::{sample_compiled_points, SamplePoint, Sampling};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PanelKind {
     Plan,
     Frame,
+    Elevation,
+    Timeline,
+    Metrics,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -89,6 +98,8 @@ impl MediaType {
 pub struct ViewRequest {
     pub scene_id: Option<String>,
     pub intent: RenderIntent,
+    pub view_intent: ViewIntent,
+    pub cue_scope: CueScope,
     pub labels: LabelMode,
     pub sampling: Sampling,
     pub panels: Vec<PanelKind>,
@@ -106,6 +117,8 @@ impl ViewRequest {
         ViewRequest {
             scene_id: None,
             intent: RenderIntent::Human,
+            view_intent: ViewIntent::StoryboardReview,
+            cue_scope: CueScope::Current,
             labels: LabelMode::ColorName,
             sampling: Sampling::PerShot,
             panels: vec![PanelKind::Plan, PanelKind::Frame],
@@ -118,11 +131,13 @@ impl ViewRequest {
         }
     }
 
-    /// Conditioning defaults (D7/D7a): colour-coded geometry and motion
-    /// arrows, no text, one artifact per sampled moment.
+    /// Conditioning defaults (D7/D7a): clean colour-coded geometry, no text
+    /// or burned-in review arrows, one artifact per sampled moment. Models
+    /// with scribble control request a separate cue map through ViewIntent.
     pub fn conditioning() -> ViewRequest {
         ViewRequest {
             intent: RenderIntent::Conditioning,
+            view_intent: ViewIntent::ModelControl(ControlProfile::default()),
             labels: LabelMode::Color,
             overlays: OverlaySet::CONDITIONING,
             layout: Layout::Separate,
@@ -134,6 +149,7 @@ impl ViewRequest {
     pub fn style(&self) -> PanelStyle {
         PanelStyle {
             intent: self.intent,
+            cue_scope: self.cue_scope,
             labels: self.labels,
             overlays: self.overlays,
             aspect: self.aspect,
@@ -167,6 +183,7 @@ impl ViewArtifact {
 #[derive(Debug)]
 pub enum ViewError {
     Solve(SolveError),
+    Compile(String),
     NoScene(String),
     NoSamples(String),
     Unsupported(String),
@@ -177,6 +194,7 @@ impl fmt::Display for ViewError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ViewError::Solve(e) => write!(f, "cannot solve document: {e}"),
+            ViewError::Compile(message) => write!(f, "cannot compile guidance: {message}"),
             ViewError::NoScene(id) => write!(f, "no scene matched '{id}'"),
             ViewError::NoSamples(id) => write!(f, "scene '{id}' produced no sample points"),
             ViewError::Unsupported(msg) => write!(f, "{msg}"),
@@ -190,6 +208,15 @@ impl std::error::Error for ViewError {}
 impl From<SolveError> for ViewError {
     fn from(e: SolveError) -> Self {
         ViewError::Solve(e)
+    }
+}
+
+impl From<CompileError> for ViewError {
+    fn from(error: CompileError) -> Self {
+        match error {
+            CompileError::Solve(error) => ViewError::Solve(error),
+            other => ViewError::Compile(other.to_string()),
+        }
     }
 }
 
@@ -212,6 +239,7 @@ pub fn build_cells<'a>(
         project,
         scene,
         solved,
+        compiled: None,
         diagnostics,
     };
     let style = request.style();
@@ -232,6 +260,7 @@ pub fn build_cells<'a>(
                 .contains(&PanelKind::Frame)
                 .then(|| panel::frame_panel(&ctx, &style, request.frame_width, sample))
                 .flatten(),
+            extras: Vec::new(),
         })
         .collect();
     SceneCells {
@@ -239,6 +268,59 @@ pub fn build_cells<'a>(
         samples,
         cells,
     }
+}
+
+fn build_compiled_cells<'a>(
+    project: &'a CineProject,
+    scene: &'a Scene,
+    solved: &SolvedScene,
+    compiled: &CompiledScene,
+    diagnostics: &[Diagnostic],
+    request: &ViewRequest,
+) -> SceneCells<'a> {
+    let mut built = build_cells(project, scene, solved, diagnostics, request);
+    let fps = project.frame_rate.frames_per_second().unwrap_or(24.0);
+    built.samples = sample::sample_compiled_points(compiled, &request.sampling, fps);
+    let ctx = PanelContext {
+        project,
+        scene,
+        solved,
+        compiled: Some(compiled),
+        diagnostics,
+    };
+    let style = request.style();
+    let plan = panel::scene_plan(&ctx, request.plan_size);
+    built.cells = built
+        .samples
+        .iter()
+        .filter_map(|sample| {
+            let shot = compiled.shot(&sample.shot_id)?;
+            let mut extras = Vec::new();
+            if request.panels.contains(&PanelKind::Timeline)
+                || request.panels.contains(&PanelKind::Metrics)
+            {
+                extras.push(diagram::lower_shot_diagnostics(shot, request.frame_width));
+            }
+            if request.panels.contains(&PanelKind::Elevation) {
+                extras.push(diagram::lower_elevation(shot, request.frame_width));
+            }
+            Some(Cell {
+                title: format!("{} · f{}", sample.label, sample.scene_frame),
+                plan: request
+                    .panels
+                    .contains(&PanelKind::Plan)
+                    .then(|| panel::plan_panel(&ctx, &style, &plan, sample))
+                    .flatten(),
+                frame: request
+                    .panels
+                    .contains(&PanelKind::Frame)
+                    .then(|| panel::frame_panel(&ctx, &style, request.frame_width, sample))
+                    .flatten(),
+                extras,
+            })
+        })
+        .collect();
+    built
 }
 
 fn encode_canvas(canvas: &Canvas, encoding: &Encoding, title: &str) -> Result<Vec<u8>, ViewError> {
@@ -265,7 +347,51 @@ pub fn render_view(
     project: &CineProject,
     request: &ViewRequest,
 ) -> Result<Vec<ViewArtifact>, ViewError> {
-    let output = solve_project(project, &SolveOptions::default())?;
+    if let ViewIntent::ModelControl(profile) = &request.view_intent {
+        if profile.include_cue_map {
+            let mut clean = request.clone();
+            clean.view_intent = ViewIntent::ModelControl(ControlProfile {
+                include_cue_map: false,
+                ..profile.clone()
+            });
+            clean.intent = RenderIntent::Conditioning;
+            clean.overlays = OverlaySet::NONE;
+            if !profile.burn_in_labels {
+                clean.labels = LabelMode::Color;
+            }
+            let mut artifacts = render_view(project, &clean)?;
+
+            let mut cues = clean;
+            cues.intent = RenderIntent::CueMap;
+            cues.labels = LabelMode::None;
+            cues.panels = vec![PanelKind::Frame];
+            cues.overlays = OverlaySet {
+                arrows: true,
+                ..OverlaySet::NONE
+            };
+            for mut artifact in render_view(project, &cues)? {
+                if let Some((stem, extension)) = artifact.name.rsplit_once('.') {
+                    artifact.name = format!("{stem}_cue_map.{extension}");
+                } else {
+                    artifact.name.push_str("_cue_map");
+                }
+                artifacts.push(artifact);
+            }
+            return Ok(artifacts);
+        }
+        if !profile.burn_in_labels && request.labels == LabelMode::ColorName {
+            let mut clean = request.clone();
+            clean.labels = LabelMode::Color;
+            return render_view(project, &clean);
+        }
+    }
+    let output = compile_project(
+        project,
+        &CompileOptions {
+            aspect_ratio: request.aspect,
+            ..CompileOptions::default()
+        },
+    )?;
     let mut diagnostics = output.report.diagnostics.clone();
     for scene in &project.scenes {
         // validate_project already ran continuity analysis inside solve; keep
@@ -291,7 +417,10 @@ pub fn render_view(
         let Some(solved) = output.solved.scene(&scene.id) else {
             continue;
         };
-        let built = build_cells(project, scene, solved, &diagnostics, request);
+        let Some(compiled) = output.compiled.scene(&scene.id) else {
+            continue;
+        };
+        let built = build_compiled_cells(project, scene, solved, compiled, &diagnostics, request);
         if built.cells.is_empty() {
             return Err(ViewError::NoSamples(scene.id.clone()));
         }

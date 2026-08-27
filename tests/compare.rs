@@ -1,10 +1,15 @@
 use std::path::PathBuf;
 
 use cinematography_ir::compare::{
-    compare_trajectories, trajectory_from_solved, Alignment, EstimatedShot, EstimatedTrajectory,
+    compare_compiled_guidance, compare_compiled_guidance_with_temporal, compare_trajectories,
+    trajectory_from_solved, Alignment, EstimatedShot, EstimatedSubjectScreenFrame,
+    EstimatedTrajectory, TemporalAlignment,
 };
 use cinematography_ir::math::Vec3;
-use cinematography_ir::{load_project, solve_project, SolveOptions, SolvedProject};
+use cinematography_ir::{
+    compile_project, load_project, solve_project, CompileOptions, ConstraintStatus, SolveOptions,
+    SolvedProject,
+};
 
 fn solved(name: &str) -> SolvedProject {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -124,4 +129,131 @@ fn missing_and_unmatched_shots_are_reported() {
     let json = serde_json::to_string(&estimate).unwrap();
     let back: EstimatedTrajectory = serde_json::from_str(&json).unwrap();
     assert_eq!(back, estimate);
+}
+
+#[test]
+fn similarity_alignment_removes_global_rotation() {
+    let solved = solved("dolly_zoom.yaml");
+    let scene = &solved.scenes[0];
+    let mut estimate = trajectory_from_solved(scene);
+    let rotate = |value: Vec3| Vec3::new(-value.z, value.y, value.x);
+    for frame in &mut estimate.shots[0].frames {
+        frame.position = rotate(frame.position) * 2.0 + Vec3::new(8.0, -3.0, 4.0);
+        frame.forward = frame.forward.map(rotate);
+        frame.up = frame.up.map(rotate);
+    }
+    let report = compare_trajectories(scene, &estimate, Alignment::Similarity);
+    assert!(
+        report.shots[0].position_rmse_m < 1e-3,
+        "{:?}",
+        report.shots[0]
+    );
+    assert!(report.shots[0].applied_rotation_deg.unwrap() > 80.0);
+    assert!(report.shots[0].horizon_mean_error_deg.unwrap() < 1e-2);
+}
+
+#[test]
+fn compiled_compare_accepts_exact_jaws_screen_tracks_and_rejects_bbox_drift() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("examples")
+        .join("jaws_beach_dolly_zoom.yaml");
+    let project = load_project(path).unwrap();
+    let output = compile_project(&project, &CompileOptions::default()).unwrap();
+    let scene = &output.compiled.scenes[0];
+    let solved_scene = &output.solved.scenes[0];
+    let mut estimate = trajectory_from_solved(solved_scene);
+    for (estimated_shot, compiled_shot) in estimate.shots.iter_mut().zip(&scene.shots) {
+        for frame in &mut estimated_shot.frames {
+            frame.subjects = compiled_shot
+                .screen_tracks
+                .iter()
+                .filter_map(|track| {
+                    let value = track
+                        .frames
+                        .iter()
+                        .find(|value| value.frame == frame.frame)?;
+                    Some(EstimatedSubjectScreenFrame {
+                        subject_id: track.subject_id.clone(),
+                        bbox: value.bbox,
+                        visible_fraction: Some(value.visible_fraction),
+                        depth_m: value.depth_m,
+                        focus_score: value.focus_score,
+                    })
+                })
+                .collect();
+        }
+    }
+    let exact = compare_compiled_guidance(scene, &estimate, Alignment::None);
+    let observer_lock = exact.shots[0]
+        .constraints
+        .iter()
+        .find(|constraint| constraint.constraint_id.contains("bbox_height"))
+        .unwrap();
+    assert_eq!(observer_lock.status, ConstraintStatus::Pass);
+    assert!(exact.shots[0].perceptual.bbox_height_max_error.unwrap() < 1e-6);
+
+    for frame in &mut estimate.shots[0].frames[48..168] {
+        let observer = frame
+            .subjects
+            .iter_mut()
+            .find(|subject| subject.subject_id == "observer")
+            .unwrap();
+        observer.bbox.max_y += 0.08;
+    }
+    let drifted = compare_compiled_guidance(scene, &estimate, Alignment::None);
+    let observer_lock = drifted.shots[0]
+        .constraints
+        .iter()
+        .find(|constraint| constraint.constraint_id.contains("bbox_height"))
+        .unwrap();
+    assert_eq!(observer_lock.status, ConstraintStatus::Fail);
+}
+
+#[test]
+fn compiled_compare_can_dtw_align_a_time_warp_without_hiding_timing_metrics() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("examples")
+        .join("dolly_zoom.yaml");
+    let project = load_project(path).unwrap();
+    let output = compile_project(&project, &CompileOptions::default()).unwrap();
+    let scene = &output.compiled.scenes[0];
+    let mut estimate = trajectory_from_solved(&output.solved.scenes[0]);
+    let original = estimate.shots[0].frames.clone();
+    let count = original.len();
+    for (index, frame) in estimate.shots[0].frames.iter_mut().enumerate() {
+        let t = index as f32 / (count - 1).max(1) as f32;
+        let source = ((t * t) * (count - 1) as f32).round() as usize;
+        let declared_frame = frame.frame;
+        *frame = original[source.min(count - 1)].clone();
+        frame.frame = declared_frame;
+    }
+    let exact = compare_compiled_guidance_with_temporal(
+        scene,
+        &estimate,
+        Alignment::Translation,
+        TemporalAlignment::Exact,
+    );
+    let warped = compare_compiled_guidance_with_temporal(
+        scene,
+        &estimate,
+        Alignment::Translation,
+        TemporalAlignment::DynamicTimeWarping,
+    );
+    let exact_error = exact.shots[0].trajectory.as_ref().unwrap().position_rmse_m;
+    let warped_error = warped.shots[0].trajectory.as_ref().unwrap().position_rmse_m;
+    assert!(
+        warped_error < exact_error * 0.2,
+        "{exact_error} -> {warped_error}"
+    );
+    assert_eq!(
+        warped.temporal_alignment,
+        TemporalAlignment::DynamicTimeWarping
+    );
+    assert!(
+        !warped.shots[0]
+            .perceptual
+            .phase_timing_error_frames
+            .is_empty(),
+        "phase timing must be measured on the original, unwarped estimate"
+    );
 }

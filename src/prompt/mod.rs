@@ -8,13 +8,12 @@ pub mod dialect;
 
 use std::fmt::Write;
 
-use crate::math::identity_basis;
+use crate::compiled::{compile_project, CompiledScene, CompiledShot, ConstraintStatus, PhaseKind};
 use crate::model::{
     CameraOperation, CineProject, DepthRole, Scene, Shot, TargetRef, TimedCameraOperation,
     Transition,
 };
 use crate::palette::{scene_palette, NamedColor};
-use crate::solve::sampler::{aim_height_fraction, sample_subjects};
 
 use dialect::serde_name;
 pub use dialect::{DialectError, PromptDialect, GENERIC_DIALECT_JSON};
@@ -57,9 +56,43 @@ pub fn emit_project_prompts(
 ) -> Vec<ShotPrompt> {
     let project = crate::solve::normalize_units(project);
     let project = &*project;
+    let compiled = compile_project(project, &crate::compiled::CompileOptions::default())
+        .ok()
+        .map(|output| output.compiled);
     let mut prompts = Vec::new();
     for scene in &project.scenes {
         if scene_filter.is_some_and(|id| id != scene.id) {
+            continue;
+        }
+        let compiled_scene = compiled.as_ref().and_then(|value| value.scene(&scene.id));
+        let mut compiled_shots: Vec<&CompiledShot> = compiled_scene
+            .map(|scene| scene.shots.iter().collect())
+            .unwrap_or_default();
+        compiled_shots.sort_by_key(|shot| (shot.edit_range.start, shot.edit_range.end));
+        if !compiled_shots.is_empty() {
+            for compiled_shot in compiled_shots {
+                if shot_filter.is_some_and(|id| id != compiled_shot.id) {
+                    continue;
+                }
+                let authored = scene
+                    .shots
+                    .iter()
+                    .find(|shot| shot.id == compiled_shot.id)
+                    .cloned()
+                    .unwrap_or_else(|| shot_from_compiled(compiled_shot));
+                prompts.push(ShotPrompt {
+                    scene_id: scene.id.clone(),
+                    shot_id: compiled_shot.id.clone(),
+                    text: emit_shot_prompt_inner(
+                        project,
+                        scene,
+                        &authored,
+                        Some(compiled_shot),
+                        dialect,
+                        options,
+                    ),
+                });
+            }
             continue;
         }
         let mut shots: Vec<&Shot> = scene.shots.iter().collect();
@@ -71,7 +104,7 @@ pub fn emit_project_prompts(
             prompts.push(ShotPrompt {
                 scene_id: scene.id.clone(),
                 shot_id: shot.id.clone(),
-                text: emit_shot_prompt(project, scene, shot, dialect, options),
+                text: emit_shot_prompt_inner(project, scene, shot, None, dialect, options),
             });
         }
     }
@@ -83,6 +116,26 @@ pub fn emit_shot_prompt(
     project: &CineProject,
     scene: &Scene,
     shot: &Shot,
+    dialect: &PromptDialect,
+    options: &PromptOptions,
+) -> String {
+    let compiled = compile_project(project, &crate::compiled::CompileOptions::default())
+        .ok()
+        .and_then(|output| {
+            output
+                .compiled
+                .scene(&scene.id)
+                .and_then(|value| value.shot(&shot.id))
+                .cloned()
+        });
+    emit_shot_prompt_inner(project, scene, shot, compiled.as_ref(), dialect, options)
+}
+
+fn emit_shot_prompt_inner(
+    project: &CineProject,
+    scene: &Scene,
+    shot: &Shot,
+    compiled: Option<&CompiledShot>,
     dialect: &PromptDialect,
     options: &PromptOptions,
 ) -> String {
@@ -248,8 +301,7 @@ pub fn emit_shot_prompt(
     let movement = if shot.camera.operations.is_empty() {
         dialect.word("static")
     } else {
-        let cs = &project.coordinate_system;
-        let up = identity_basis(cs).up;
+        let up = crate::math::identity_basis(&project.coordinate_system).up;
         let mut focal = shot.camera.initial_state.lens.focal_length_mm;
         let mut ordered: Vec<&TimedCameraOperation> = shot.camera.operations.iter().collect();
         ordered.sort_by_key(|timed| (timed.range.start, timed.range.end));
@@ -259,23 +311,17 @@ pub fn emit_shot_prompt(
             let (key, measurement, mut next_focal) =
                 operation_key(&timed.operation, focal, up, options.include_measurements);
             let measurement = measurement.map(|m| m.replace("{to}", &dialect.word("to")));
-            if let CameraOperation::DollyZoom {
-                target,
-                to_distance_m,
-                ..
-            } = &timed.operation
-            {
-                // Mirror the solver: focal scales with distance to the target.
-                let unit = match cs.units {
-                    crate::model::Unit::Meters => 1.0,
-                    crate::model::Unit::Centimeters => 0.01,
-                };
-                let camera = shot.camera.initial_state.transform.position * unit;
-                if let Some(aim) = initial_aim_point(scene, cs, target, shot.range.start) {
-                    let d0 = (aim - camera).length();
-                    if d0 > 1e-4 {
-                        next_focal = focal * to_distance_m / d0;
-                    }
+            if matches!(timed.operation, CameraOperation::DollyZoom { .. }) {
+                // The compiled lens track is authoritative. Prompt rendering
+                // never re-solves the coupled camera/lens mechanism.
+                if let Some(frame) = compiled.and_then(|shot| {
+                    let frame = shot.edit_range.start + timed.range.end.saturating_sub(1);
+                    shot.lens_track
+                        .frames
+                        .iter()
+                        .find(|value| value.frame == frame)
+                }) {
+                    next_focal = frame.focal_length_mm;
                 }
             }
             focal = next_focal;
@@ -398,6 +444,58 @@ pub fn emit_shot_prompt(
         }
     }
 
+    if let Some(compiled) = compiled {
+        let mut phases = Vec::new();
+        for phase in &compiled.phases {
+            let start = phase.local_range.start as f64 / fps;
+            let end = phase.local_range.end as f64 / fps;
+            phases.push(format!(
+                "{start:.1}-{end:.1}s {}",
+                phase_prompt_name(phase.kind)
+            ));
+        }
+        if !phases.is_empty() {
+            sentences.push(format!("Timeline: {}.", phases.join("; ")));
+        }
+        if !compiled.prohibitions.is_empty() {
+            let prohibitions: Vec<_> = compiled
+                .prohibitions
+                .iter()
+                .map(prohibition_prompt)
+                .collect();
+            sentences.push(format!("Do not {}.", prohibitions.join(", do not ")));
+        }
+        let failed: Vec<_> = compiled
+            .evaluations
+            .iter()
+            .filter(|evaluation| evaluation.status == ConstraintStatus::Fail)
+            .map(|evaluation| {
+                format!(
+                    "{} must pass{}",
+                    humanize_constraint_id(&evaluation.constraint_id),
+                    evaluation
+                        .max_error
+                        .map_or(String::new(), |error| format!("; maximum error {error:.4}"))
+                )
+            })
+            .collect();
+        if !failed.is_empty() {
+            sentences.push(format!("Acceptance checks: {}.", failed.join("; ")));
+        }
+        let passed = compiled
+            .evaluations
+            .iter()
+            .filter(|evaluation| evaluation.status == ConstraintStatus::Pass)
+            .count();
+        let adapter_owned = compiled
+            .evaluations
+            .len()
+            .saturating_sub(passed + failed.len());
+        sentences.push(format!(
+            "Compiled acceptance: {passed} observable checks pass; {adapter_owned} checks require a capable execution adapter."
+        ));
+    }
+
     // Notes.
     if !shot.notes.is_empty() {
         sentences.push(format!(
@@ -415,42 +513,133 @@ pub fn emit_shot_prompt(
     sentences.join(" ")
 }
 
-/// Where the solver aims at `target` at `frame`: sampled blocking position
-/// plus the kind-specific aim height (eyes for characters).
-fn initial_aim_point(
-    scene: &Scene,
-    cs: &crate::model::CoordinateSystem,
-    target: &TargetRef,
-    frame: u64,
-) -> Option<crate::model::Vec3> {
-    match target {
-        TargetRef::Subject { id } => {
-            let tracks = sample_subjects(scene, cs);
-            let track = tracks.iter().find(|t| &t.subject_id == id)?;
-            let transform = track.transform_at(frame);
-            let up = identity_basis(cs).up;
-            // Positions follow the document's units; heights are metres.
-            Some(
-                transform.position * unit_scale(cs)
-                    + up * (track.dimensions_m.y
-                        * aim_height_fraction(track.kind)
-                        * transform.scale.y),
+/// Concise, time-ordered command for video models. It contains only compiled
+/// observable results and explicit prohibitions.
+pub fn emit_guidance_command(scene: &CompiledScene, shot: &CompiledShot, fps: f64) -> String {
+    let mut lines = Vec::new();
+    for phase in &shot.phases {
+        let start = phase.local_range.start as f64 / fps.max(1.0);
+        let end = phase.local_range.end as f64 / fps.max(1.0);
+        let first = shot.frame_at(phase.edit_range.start);
+        let last = shot.frame_at(phase.edit_range.end.saturating_sub(1));
+        let camera = first.zip(last).map_or(String::new(), |(first, last)| {
+            format!(
+                "; camera ({:.2},{:.2},{:.2}) to ({:.2},{:.2},{:.2}), lens {:.1}mm to {:.1}mm",
+                first.position.x,
+                first.position.y,
+                first.position.z,
+                last.position.x,
+                last.position.y,
+                last.position.z,
+                first.focal_length_mm,
+                last.focal_length_mm
             )
-        }
-        TargetRef::Marker { id } => scene
-            .markers
-            .iter()
-            .find(|m| &m.id == id)
-            .map(|m| m.position * unit_scale(cs)),
-        TargetRef::Point { position } => Some(*position * unit_scale(cs)),
+        });
+        lines.push(format!(
+            "{start:.1}-{end:.1}s: {}{camera}",
+            phase_prompt_name(phase.kind)
+        ));
+    }
+    for constraint in &shot.evaluations {
+        lines.push(format!(
+            "constraint {}: requested {}; compiled {} ({:?})",
+            constraint.constraint_id, constraint.requested, constraint.actual, constraint.status
+        ));
+    }
+    if !shot.prohibitions.is_empty() {
+        lines.push(format!(
+            "prohibit: {}",
+            shot.prohibitions
+                .iter()
+                .map(prohibition_prompt)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if !shot.intent.phrases.is_empty() {
+        lines.push(format!(
+            "shot phrases: {}",
+            shot.intent
+                .phrases
+                .iter()
+                .map(shot_phrase_prompt)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    format!(
+        "scene {} / shot {}\n{}",
+        scene.id,
+        shot.id,
+        lines.join("\n")
+    )
+}
+
+fn shot_phrase_prompt(value: &crate::model::ShotPhrase) -> &'static str {
+    use crate::model::ShotPhrase;
+    match value {
+        ShotPhrase::PressurePushIn => "pressure push-in",
+        ShotPhrase::SubjectLockDollyZoom => "subject-lock dolly zoom",
+        ShotPhrase::ForegroundParallaxReveal => "foreground parallax reveal",
+        ShotPhrase::VisibleAxisCross => "visible axis cross",
+        ShotPhrase::RackFocusReveal => "rack-focus reveal",
+        ShotPhrase::ReactionHold => "reaction hold",
+        ShotPhrase::WalkAndTalkFollow => "walk-and-talk follow",
+        ShotPhrase::OrbitRelationshipShift => "orbit relationship shift",
     }
 }
 
-fn unit_scale(cs: &crate::model::CoordinateSystem) -> f32 {
-    match cs.units {
-        crate::model::Unit::Meters => 1.0,
-        crate::model::Unit::Centimeters => 0.01,
+fn shot_from_compiled(compiled: &CompiledShot) -> Shot {
+    Shot {
+        id: compiled.id.clone(),
+        range: compiled.edit_range,
+        purpose: compiled.intent.purpose.clone(),
+        coverage_role: compiled.intent.coverage_role,
+        framing: compiled.intent.framing.clone(),
+        camera: compiled.intent.camera.clone(),
+        lighting_setup_id: compiled.intent.lighting_setup_id.clone(),
+        continuity: compiled.intent.continuity.clone(),
+        transition_in: compiled.intent.transition_in.kind,
+        transition: Some(compiled.intent.transition_in.clone()),
+        relations: compiled.intent.relations.clone(),
+        phrases: compiled.intent.phrases.clone(),
+        prohibit: compiled.prohibitions.clone(),
+        notes: compiled.intent.notes.clone(),
+        metadata: Default::default(),
     }
+}
+
+fn phase_prompt_name(kind: PhaseKind) -> &'static str {
+    match kind {
+        PhaseKind::Hold => "hold the camera completely still",
+        PhaseKind::Motion => "execute the authored physical camera move",
+        PhaseKind::Focus => "move the focal plane between the authored targets",
+        PhaseKind::Reveal => "increase target visibility through foreground parallax",
+        PhaseKind::Settle => "stop all camera and lens motion and settle",
+        PhaseKind::Mixed => "execute the coupled camera program",
+    }
+}
+
+pub fn prohibition_prompt(value: &crate::model::Prohibition) -> &'static str {
+    use crate::model::Prohibition;
+    match value {
+        Prohibition::ActorTranslationAsCameraSubstitute => "move actors to imitate camera motion",
+        Prohibition::DigitalCropAsDollySubstitute => {
+            "use a digital crop instead of a physical dolly"
+        }
+        Prohibition::BackgroundDeformationAsParallaxSubstitute => {
+            "deform the background to imitate parallax"
+        }
+        Prohibition::GlobalBlurAsRackFocusSubstitute => {
+            "use global blur instead of a focal-plane handoff"
+        }
+        Prohibition::HandheldMotion => "add handheld motion",
+        Prohibition::UnplannedCut => "insert an unplanned cut",
+    }
+}
+
+fn humanize_constraint_id(id: &str) -> String {
+    id.replace(['.', '_'], " ")
 }
 
 fn bind_color(dialect: &PromptDialect, name: &str, color: NamedColor) -> String {

@@ -1,8 +1,11 @@
 use std::path::PathBuf;
 
-use cinematography_ir::view::canvas::{ArrowKind, CanvasItem, GuideKind};
+use cinematography_ir::view::canvas::{
+    theme, Anchor, ArrowKind, Canvas, CanvasItem, GuideKind, Vec2,
+};
 use cinematography_ir::view::{
-    build_cells, Encoding, LabelMode, Layout, OverlaySet, PanelKind, Sampling, StripAxis, ViewError,
+    build_cells, ControlProfile, Encoding, LabelMode, Layout, OverlaySet, PanelKind, RenderIntent,
+    Sampling, StripAxis, ViewError, ViewIntent,
 };
 use cinematography_ir::{load_project, render_view, solve_project, SolveOptions, ViewRequest};
 
@@ -166,7 +169,7 @@ fn conditioning_intent_carries_no_text_and_only_motion_overlays() {
         alice.frame.as_ref().unwrap().count(|i| matches!(
             i,
             CanvasItem::Polyline {
-                kind: ArrowKind::MotionCue,
+                kind: ArrowKind::ImageMotion,
                 ..
             }
         )),
@@ -181,8 +184,8 @@ fn conditioning_intent_carries_no_text_and_only_motion_overlays() {
                 ..
             }
         )),
-        1,
-        "camera path arrow on the plan"
+        0,
+        "clean model-control panels must not burn in camera paths"
     );
     // color+name under conditioning may label subjects, but nothing else.
     let named = ViewRequest {
@@ -586,6 +589,11 @@ scenes:
     let request = ViewRequest {
         sampling,
         panels: vec![PanelKind::Frame],
+        intent: RenderIntent::CueMap,
+        overlays: OverlaySet {
+            arrows: true,
+            ..OverlaySet::NONE
+        },
         ..ViewRequest::conditioning()
     };
     let built = build_cells(
@@ -606,7 +614,7 @@ scenes:
                 .iter()
                 .filter_map(|i| match i {
                     CanvasItem::Polyline {
-                        kind: ArrowKind::MotionCue,
+                        kind: ArrowKind::ImageMotion,
                         points,
                         ..
                     } => {
@@ -710,6 +718,11 @@ fn motion_cues_follow_the_solver_not_the_sampled_frame() {
     let request = ViewRequest {
         sampling: Sampling::OperationEndpoints,
         panels: vec![PanelKind::Frame],
+        intent: RenderIntent::CueMap,
+        overlays: OverlaySet {
+            arrows: true,
+            ..OverlaySet::NONE
+        },
         ..ViewRequest::conditioning()
     };
     let built = build_cells(
@@ -732,7 +745,7 @@ fn motion_cues_follow_the_solver_not_the_sampled_frame() {
         .iter()
         .filter_map(|item| match item {
             CanvasItem::Polyline {
-                kind: ArrowKind::MotionCue,
+                kind: ArrowKind::ImageMotion,
                 points,
                 ..
             } if points[0].y > 180.0 && points[0].x > 80.0 && points[0].x < 320.0 => {
@@ -752,4 +765,96 @@ fn motion_cues_follow_the_solver_not_the_sampled_frame() {
         Sampling::PerShot,
     );
     assert!(cues[0].is_empty(), "target already on axis: {:?}", cues[0]);
+}
+
+#[test]
+fn png_uses_distinct_cjk_glyphs_instead_of_one_replacement_box() {
+    let render = |content: &str| {
+        let mut canvas = Canvas::new(96.0, 64.0);
+        canvas.push(CanvasItem::Text {
+            at: Vec2::new(48.0, 40.0),
+            content: content.to_owned(),
+            anchor: Anchor::Middle,
+            size: 32.0,
+            color: theme::WHITE,
+            bold: false,
+        });
+        cinematography_ir::view::encode::canvas_to_png(&canvas, 1.0).unwrap()
+    };
+    assert_ne!(
+        render("中"),
+        render("文"),
+        "the PNG font fallback rendered distinct CJK characters as the same missing-glyph box"
+    );
+}
+
+#[test]
+fn semantic_canvas_primitives_lower_into_svg_and_ascii() {
+    let mut canvas = Canvas::new(120.0, 80.0);
+    canvas.push(CanvasItem::Group {
+        opacity: 0.4,
+        z_index: 2,
+        clip: None,
+        items: vec![CanvasItem::CubicPath {
+            from: Vec2::new(10.0, 60.0),
+            control1: Vec2::new(35.0, 5.0),
+            control2: Vec2::new(80.0, 5.0),
+            to: Vec2::new(110.0, 60.0),
+            color: theme::CAMERA,
+            width: 2.0,
+            arrow_head: true,
+            kind: ArrowKind::CameraCommand,
+        }],
+    });
+    canvas.push(CanvasItem::VectorField {
+        vectors: vec![
+            (Vec2::new(20.0, 40.0), Vec2::new(32.0, 40.0)),
+            (Vec2::new(80.0, 40.0), Vec2::new(68.0, 40.0)),
+        ],
+        color: theme::GUIDE,
+        width: 1.0,
+        kind: ArrowKind::ImageMotion,
+    });
+    canvas.push(CanvasItem::EmbeddedImage {
+        rect: cinematography_ir::view::canvas::Rect::new(Vec2::new(2.0, 2.0), Vec2::new(4.0, 4.0)),
+        mime_type: "image/png".to_owned(),
+        data_base64: "iVBORw0KGgo=".to_owned(),
+        opacity: 0.5,
+        z_index: -1,
+    });
+    let svg = cinematography_ir::view::encode::canvas_to_svg(&canvas);
+    assert!(svg.contains("<g opacity=\"0.4\""));
+    assert!(svg.contains("<path d=\"M"));
+    assert!(svg.contains("data:image/png;base64,"));
+    let ascii = cinematography_ir::view::encode::canvas_to_ascii(&canvas, 60);
+    assert!(!ascii.is_empty());
+}
+
+#[test]
+fn model_control_emits_clean_frames_and_an_independent_optional_cue_map() {
+    let request = ViewRequest {
+        view_intent: ViewIntent::ModelControl(ControlProfile {
+            name: "scribble_model".to_owned(),
+            include_cue_map: true,
+            burn_in_labels: false,
+        }),
+        sampling: Sampling::OperationEndpoints,
+        panels: vec![PanelKind::Frame],
+        encoding: Encoding::Svg,
+        ..ViewRequest::conditioning()
+    };
+    let artifacts = render("dolly_zoom.yaml", &request);
+    assert_eq!(artifacts.len() % 2, 0);
+    let (clean, cues): (Vec<_>, Vec<_>) = artifacts
+        .iter()
+        .partition(|artifact| !artifact.name.contains("_cue_map"));
+    assert_eq!(clean.len(), cues.len());
+    assert!(clean.iter().all(|artifact| {
+        let svg = artifact.text().unwrap();
+        svg.contains("class=\"silhouette\"") && !svg.contains("data-arrow-kind=\"image_motion\"")
+    }));
+    assert!(cues.iter().any(|artifact| {
+        let svg = artifact.text().unwrap();
+        !svg.contains("class=\"silhouette\"") && svg.contains("data-arrow-kind=\"image_motion\"")
+    }));
 }

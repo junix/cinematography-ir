@@ -2,6 +2,7 @@
 //! (through-the-lens) canvases for one sampled moment, with overlays gated by
 //! `RenderIntent` and `LabelMode` (D7/D7a).
 
+use crate::compiled::CompiledScene;
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::math::{identity_basis, oriented_basis, Vec3};
 use crate::model::{
@@ -21,8 +22,48 @@ use crate::view::sample::SamplePoint;
 pub enum RenderIntent {
     /// Review output: labels, guides, axes, diagnostics.
     Human,
-    /// Model conditioning: geometry and motion arrows only (D7).
+    /// Clean model conditioning geometry. Motion is expressed by sequences or
+    /// numeric controls, never burned into the proxy image by default.
     Conditioning,
+    /// Independent scribble/cue map for models that explicitly support it.
+    CueMap,
+}
+
+/// Product-level view purpose. Unlike `RenderIntent`, this identifies the
+/// cinematography question the artifact answers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ViewIntent {
+    StoryboardReview,
+    MotionGrammar,
+    ContinuityReview,
+    ModelControl(ControlProfile),
+    ConstraintDiagnostics,
+    GeneratedComparison,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ControlProfile {
+    pub name: String,
+    pub include_cue_map: bool,
+    pub burn_in_labels: bool,
+}
+
+impl Default for ControlProfile {
+    fn default() -> Self {
+        Self {
+            name: "generic_dense_control".to_owned(),
+            include_cue_map: false,
+            burn_in_labels: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CueScope {
+    #[default]
+    Current,
+    CurrentAndUpcoming,
+    WholeShotSummary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,20 +116,16 @@ impl OverlaySet {
         markers: false,
     };
 
-    /// Overlays a conditioning image may carry: motion arrows only.
-    pub const CONDITIONING: OverlaySet = OverlaySet {
-        arrows: true,
-        subject_paths: true,
-        ..OverlaySet::NONE
-    };
+    /// Clean conditioning frames carry no review overlay.
+    pub const CONDITIONING: OverlaySet = OverlaySet::NONE;
 
     /// Effective overlays after intent gating.
     pub fn gated(self, intent: RenderIntent) -> OverlaySet {
         match intent {
             RenderIntent::Human => self,
-            RenderIntent::Conditioning => OverlaySet {
-                arrows: self.arrows,
-                subject_paths: self.subject_paths,
+            RenderIntent::Conditioning => OverlaySet::NONE,
+            RenderIntent::CueMap => OverlaySet {
+                arrows: true,
                 ..OverlaySet::NONE
             },
         }
@@ -120,6 +157,7 @@ impl OverlaySet {
 #[derive(Debug, Clone, Copy)]
 pub struct PanelStyle {
     pub intent: RenderIntent,
+    pub cue_scope: CueScope,
     pub labels: LabelMode,
     pub overlays: OverlaySet,
     /// Sensor aspect for the frame panel (width / height).
@@ -129,6 +167,10 @@ pub struct PanelStyle {
 impl PanelStyle {
     pub fn human(&self) -> bool {
         self.intent == RenderIntent::Human
+    }
+
+    pub fn cue_map(&self) -> bool {
+        self.intent == RenderIntent::CueMap
     }
 
     pub fn subject_color(&self, track: &SolvedSubjectTrack) -> Rgb {
@@ -151,6 +193,7 @@ pub struct PanelContext<'a> {
     pub project: &'a CineProject,
     pub scene: &'a Scene,
     pub solved: &'a SolvedScene,
+    pub compiled: Option<&'a CompiledScene>,
     pub diagnostics: &'a [Diagnostic],
 }
 
@@ -534,41 +577,43 @@ pub fn frame_panel(
         color: theme::WHITE,
     });
 
-    // Painter's order: far subjects first.
-    let mut silhouettes: Vec<(f32, CanvasItem)> = Vec::new();
-    for track in &ctx.solved.subjects {
-        let transform = track.transform_at(frame);
-        let basis = oriented_basis(cs, transform.rotation_deg);
-        let Some((rect, depth)) = projection.project_box(
-            transform.position,
-            track.dimensions_m,
-            &basis,
-            transform.scale,
-        ) else {
-            continue;
-        };
-        let Some(visible) = rect.intersect(&bounds) else {
-            continue;
-        };
-        silhouettes.push((
-            depth,
-            CanvasItem::Silhouette {
-                shape: GlyphShape::from(track.kind),
-                rect: visible,
-                color: style.subject_color(track),
-                label: style.subject_label(track),
-                // Above the figure when there is room, otherwise just inside it.
-                label_at: if visible.min.y >= 14.0 {
-                    Vec2::new(visible.center().x, visible.min.y - 4.0)
-                } else {
-                    Vec2::new(visible.center().x, visible.min.y + 12.0)
+    if !style.cue_map() {
+        // Painter's order: far subjects first.
+        let mut silhouettes: Vec<(f32, CanvasItem)> = Vec::new();
+        for track in &ctx.solved.subjects {
+            let transform = track.transform_at(frame);
+            let basis = oriented_basis(cs, transform.rotation_deg);
+            let Some((rect, depth)) = projection.project_box(
+                transform.position,
+                track.dimensions_m,
+                &basis,
+                transform.scale,
+            ) else {
+                continue;
+            };
+            let Some(visible) = rect.intersect(&bounds) else {
+                continue;
+            };
+            silhouettes.push((
+                depth,
+                CanvasItem::Silhouette {
+                    shape: GlyphShape::from(track.kind),
+                    rect: visible,
+                    color: style.subject_color(track),
+                    label: style.subject_label(track),
+                    // Above the figure when there is room, otherwise just inside it.
+                    label_at: if visible.min.y >= 14.0 {
+                        Vec2::new(visible.center().x, visible.min.y - 4.0)
+                    } else {
+                        Vec2::new(visible.center().x, visible.min.y + 12.0)
+                    },
                 },
-            },
-        ));
-    }
-    silhouettes.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-    for (_, item) in silhouettes {
-        canvas.push(item);
+            ));
+        }
+        silhouettes.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        for (_, item) in silhouettes {
+            canvas.push(item);
+        }
     }
 
     if overlays.arrows {
@@ -577,7 +622,11 @@ pub fn frame_panel(
             .camera
             .operations
             .iter()
-            .filter(|t| local >= t.range.start && local < t.range.end)
+            .filter(|timed| match style.cue_scope {
+                CueScope::Current => local >= timed.range.start && local < timed.range.end,
+                CueScope::CurrentAndUpcoming => local < timed.range.end,
+                CueScope::WholeShotSummary => true,
+            })
             .collect();
         for cue in motion_cues(&ops, &projection, ctx, solved_shot, camera, frame) {
             canvas.push(cue);
@@ -664,14 +713,15 @@ fn motion_cues(
     let m = w * 0.08;
     let len = w * 0.14;
     let color = theme::CAMERA;
-    let arrow = |from: Vec2, to: Vec2| CanvasItem::Polyline {
+    let arrow_of = |kind: ArrowKind, from: Vec2, to: Vec2| CanvasItem::Polyline {
         points: vec![from, to],
         color,
         width: 3.0,
         style: LineStyle::Solid,
         arrow_head: true,
-        kind: ArrowKind::MotionCue,
+        kind,
     };
+    let arrow = |from: Vec2, to: Vec2| arrow_of(ArrowKind::ImageMotion, from, to);
     let center = Vec2::new(w / 2.0, h / 2.0);
     let inward = |out: bool| -> Vec<CanvasItem> {
         [
@@ -716,9 +766,14 @@ fn motion_cues(
     let mut cues = Vec::new();
     for timed in ops {
         match &timed.operation {
-            CameraOperation::Hold
-            | CameraOperation::RackFocus { .. }
-            | CameraOperation::Rotate { .. } => {}
+            CameraOperation::Hold | CameraOperation::Rotate { .. } => {}
+            CameraOperation::RackFocus { .. } => {
+                cues.push(arrow_of(
+                    ArrowKind::FocusCue,
+                    Vec2::new(w * 0.28, h * 0.5),
+                    Vec2::new(w * 0.72, h * 0.5),
+                ));
+            }
             CameraOperation::Pan { degrees } => cues.push(horizontal(m, *degrees < 0.0)),
             CameraOperation::Tilt { degrees } => cues.push(vertical(w - m, *degrees >= 0.0)),
             CameraOperation::Roll { degrees } => {
@@ -737,7 +792,7 @@ fn motion_cues(
                     width: 3.0,
                     style: LineStyle::Solid,
                     arrow_head: true,
-                    kind: ArrowKind::MotionCue,
+                    kind: ArrowKind::ImageMotion,
                 });
             }
             CameraOperation::Dolly { distance_m } => cues.extend(inward(*distance_m < 0.0)),
@@ -789,11 +844,38 @@ fn motion_cues(
                     cues.push(arrow(right_b, right_a));
                 }
             }
-            CameraOperation::Truck { distance_m }
-            | CameraOperation::Reveal {
-                lateral_distance_m: distance_m,
-                ..
-            } => cues.push(horizontal(h - m, *distance_m >= 0.0)),
+            CameraOperation::Truck { distance_m } => {
+                cues.push(horizontal(h - m, *distance_m >= 0.0));
+            }
+            CameraOperation::Reveal {
+                lateral_distance_m, ..
+            } => {
+                let x = if *lateral_distance_m >= 0.0 {
+                    w * 0.32
+                } else {
+                    w * 0.68
+                };
+                cues.push(CanvasItem::Polyline {
+                    points: vec![Vec2::new(x, h * 0.18), Vec2::new(x, h * 0.82)],
+                    color,
+                    width: 5.0,
+                    style: LineStyle::Solid,
+                    arrow_head: false,
+                    kind: ArrowKind::OcclusionCue,
+                });
+                cues.push(arrow_of(
+                    ArrowKind::OcclusionCue,
+                    Vec2::new(x, h * 0.5),
+                    Vec2::new(
+                        x + if *lateral_distance_m >= 0.0 {
+                            len
+                        } else {
+                            -len
+                        },
+                        h * 0.5,
+                    ),
+                ));
+            }
             CameraOperation::Pedestal { distance_m } => cues.push(vertical(m, *distance_m >= 0.0)),
             CameraOperation::Crane { delta, .. } => {
                 let vertical_component = delta.dot(camera.up);
@@ -845,7 +927,7 @@ fn motion_cues(
                     width: 3.0,
                     style: LineStyle::Solid,
                     arrow_head: true,
-                    kind: ArrowKind::MotionCue,
+                    kind: ArrowKind::ImageMotion,
                 });
             }
             CameraOperation::LookAt { target } => {
@@ -889,7 +971,7 @@ fn motion_cues(
                     width: 2.0,
                     style: LineStyle::Solid,
                     arrow_head: false,
-                    kind: ArrowKind::MotionCue,
+                    kind: ArrowKind::ImageMotion,
                 });
             }
         }

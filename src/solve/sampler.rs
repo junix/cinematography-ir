@@ -25,8 +25,8 @@
 //!   without feeding back into the base state, so it never drifts.
 //! * `rotate` treats both spaces as Euler-additive; `dolly_zoom` solves the
 //!   requested projected subject height when the target is a subject;
-//!   `reveal` currently uses its compiled visibility constraints for
-//!   validation while draft motion remains lateral.
+//!   `reveal` solves lateral travel from projected target/occluder geometry
+//!   when a visibility target is authored.
 //!   These are draft simplifications, not IR semantics.
 
 use crate::math::{
@@ -226,6 +226,7 @@ struct CamState {
 /// Values captured when a target operation starts.
 #[derive(Debug, Clone, Default)]
 struct Snapshot {
+    position: Vec3,
     rotation: EulerDeg,
     focal_length_mm: f32,
     focus_distance_m: Option<f32>,
@@ -233,6 +234,8 @@ struct Snapshot {
     spherical: Option<(f32, f32, f32)>,
     /// Dolly zoom: unit direction target → camera and starting distance.
     dolly_zoom: Option<(Vec3, f32)>,
+    /// Reveal: fixed starting right axis and solved terminal displacement.
+    reveal: Option<(Vec3, f32)>,
     /// Orbit / dolly zoom: (yaw, pitch) by which the camera initially missed
     /// the centre; faded out over the operation so tracking never snaps.
     aim_offset: (f32, f32),
@@ -371,11 +374,13 @@ fn snapshot_for(
     scene_frame: Frame,
 ) -> Snapshot {
     let mut snapshot = Snapshot {
+        position: state.position,
         rotation: state.rotation,
         focal_length_mm: state.focal_length_mm,
         focus_distance_m: state.focus_distance_m,
         spherical: None,
         dolly_zoom: None,
+        reveal: None,
         aim_offset: (0.0, 0.0),
     };
     let aim_offset = |center: Vec3| -> (f32, f32) {
@@ -408,6 +413,30 @@ fn snapshot_for(
             snapshot.focus_distance_m = ctx
                 .resolve(&reference, scene_frame)
                 .map(|p| (p - state.position).length());
+        }
+        CameraOperation::Reveal {
+            target,
+            occluder,
+            lateral_distance_m,
+            visibility,
+            preserve,
+        } => {
+            let right = oriented_basis(ctx.cs, state.rotation).right;
+            let distance = visibility.map_or(*lateral_distance_m, |visibility| {
+                let reveal = RevealProjection {
+                    target,
+                    occluder,
+                    right,
+                    requested_visibility: visibility.to,
+                    target_screen_y: preserve.and_then(|value| value.target_screen_y),
+                };
+                solve_reveal_distance(ctx, state, scene_frame, *lateral_distance_m, reveal)
+                    .unwrap_or(*lateral_distance_m)
+            });
+            snapshot.reveal = Some((right, distance));
+            if let Some(center) = ctx.resolve(target, scene_frame) {
+                snapshot.aim_offset = aim_offset(center);
+            }
         }
         _ => {}
     }
@@ -597,15 +626,243 @@ fn apply_operation(
         CameraOperation::Reveal {
             target,
             lateral_distance_m,
+            preserve,
             ..
         } => {
-            let basis = oriented_basis(cs, state.rotation);
-            state.position = state.position + basis.right * (lateral_distance_m * du);
             if active {
+                let (right, distance) = snapshot.reveal.unwrap_or_else(|| {
+                    (
+                        oriented_basis(cs, snapshot.rotation).right,
+                        *lateral_distance_m,
+                    )
+                });
+                state.position = snapshot.position + right * (distance * u);
                 aim_blend(state, cs, ctx.resolve(target, scene_frame), snapshot, u);
+                if let Some(target_y) = preserve.and_then(|value| value.target_screen_y) {
+                    preserve_target_screen_y(ctx, state, target, scene_frame, target_y);
+                }
             }
         }
     }
+}
+
+#[derive(Clone, Copy)]
+struct RevealProjection<'a> {
+    target: &'a TargetRef,
+    occluder: &'a TargetRef,
+    right: Vec3,
+    requested_visibility: f32,
+    target_screen_y: Option<f32>,
+}
+
+fn solve_reveal_distance(
+    ctx: &SceneContext<'_>,
+    initial: &CamState,
+    frame: Frame,
+    authored_distance: f32,
+    reveal: RevealProjection<'_>,
+) -> Option<f32> {
+    let span = (authored_distance.abs() * 8.0).max(4.0);
+    let directions: &[f32] = if authored_distance > 0.0 {
+        &[1.0]
+    } else if authored_distance < 0.0 {
+        &[-1.0]
+    } else {
+        &[-1.0, 1.0]
+    };
+    let mut best: Option<(f32, f32)> = None;
+    for direction in directions {
+        for step in 0..=128 {
+            let distance = direction * span * step as f32 / 128.0;
+            let Some(visibility) = reveal_visibility(ctx, initial, frame, reveal, distance) else {
+                continue;
+            };
+            let error = (visibility - reveal.requested_visibility).abs();
+            if best.is_none_or(|(_, best_error)| error < best_error) {
+                best = Some((distance, error));
+            }
+        }
+    }
+    let (center, _) = best?;
+    let half_step = span / 128.0;
+    let mut low = center - half_step;
+    let mut high = center + half_step;
+    for _ in 0..32 {
+        let left = low + (high - low) / 3.0;
+        let right_distance = high - (high - low) / 3.0;
+        let left_error = reveal_visibility(ctx, initial, frame, reveal, left)
+            .map_or(f32::INFINITY, |value| {
+                (value - reveal.requested_visibility).abs()
+            });
+        let right_error = reveal_visibility(ctx, initial, frame, reveal, right_distance)
+            .map_or(f32::INFINITY, |value| {
+                (value - reveal.requested_visibility).abs()
+            });
+        if left_error <= right_error {
+            high = right_distance;
+        } else {
+            low = left;
+        }
+    }
+    Some((low + high) * 0.5)
+}
+
+fn reveal_visibility(
+    ctx: &SceneContext<'_>,
+    initial: &CamState,
+    frame: Frame,
+    reveal: RevealProjection<'_>,
+    lateral_distance: f32,
+) -> Option<f32> {
+    let mut camera = initial.clone();
+    camera.position = initial.position + reveal.right * lateral_distance;
+    let aim = ctx.resolve(reveal.target, frame)?;
+    let (yaw, pitch) = look_direction_to_yaw_pitch(ctx.cs, aim - camera.position)?;
+    camera.rotation.yaw = yaw;
+    camera.rotation.pitch = pitch;
+    if let Some(target_y) = reveal.target_screen_y {
+        preserve_target_screen_y(ctx, &mut camera, reveal.target, frame, target_y);
+    }
+    let target = project_target_rect(ctx, reveal.target, frame, &camera)?;
+    let occluder = project_target_rect(ctx, reveal.occluder, frame, &camera)?;
+    let clipped = target.rect.intersect(ScreenRect::VIEWPORT);
+    let in_frame = clipped.map_or(0.0, |rect| rect.area() / target.rect.area().max(1e-6));
+    let overlap = if occluder.depth + 1e-3 < target.depth {
+        target
+            .rect
+            .intersect(occluder.rect)
+            .map_or(0.0, |rect| rect.area() / target.rect.area().max(1e-6))
+    } else {
+        0.0
+    };
+    Some((in_frame * (1.0 - overlap)).clamp(0.0, 1.0))
+}
+
+#[derive(Clone, Copy)]
+struct ScreenRect {
+    min_x: f32,
+    min_y: f32,
+    max_x: f32,
+    max_y: f32,
+}
+
+impl ScreenRect {
+    const VIEWPORT: Self = Self {
+        min_x: 0.0,
+        min_y: 0.0,
+        max_x: 1.0,
+        max_y: 1.0,
+    };
+
+    fn area(self) -> f32 {
+        (self.max_x - self.min_x).max(0.0) * (self.max_y - self.min_y).max(0.0)
+    }
+
+    fn intersect(self, other: Self) -> Option<Self> {
+        let value = Self {
+            min_x: self.min_x.max(other.min_x),
+            min_y: self.min_y.max(other.min_y),
+            max_x: self.max_x.min(other.max_x),
+            max_y: self.max_y.min(other.max_y),
+        };
+        (value.min_x < value.max_x && value.min_y < value.max_y).then_some(value)
+    }
+}
+
+struct ProjectedRect {
+    rect: ScreenRect,
+    depth: f32,
+}
+
+fn project_target_rect(
+    ctx: &SceneContext<'_>,
+    target: &TargetRef,
+    frame: Frame,
+    camera: &CamState,
+) -> Option<ProjectedRect> {
+    let TargetRef::Subject { id } = target else {
+        return None;
+    };
+    let track = ctx.subjects.iter().find(|track| &track.subject_id == id)?;
+    let transform = track.transform_at(frame);
+    let subject = oriented_basis(ctx.cs, transform.rotation_deg);
+    let camera_basis = oriented_basis(ctx.cs, camera.rotation);
+    let half_w = track.dimensions_m.x * transform.scale.x * 0.5;
+    let half_d = track.dimensions_m.z * transform.scale.z * 0.5;
+    let height = track.dimensions_m.y * transform.scale.y;
+    let half_sensor_w = camera.sensor_width_mm / (2.0 * camera.focal_length_mm.max(1e-4));
+    let half_sensor_h = half_sensor_w / (16.0 / 9.0);
+    let mut rect = ScreenRect {
+        min_x: f32::INFINITY,
+        min_y: f32::INFINITY,
+        max_x: f32::NEG_INFINITY,
+        max_y: f32::NEG_INFINITY,
+    };
+    let mut depth = f32::INFINITY;
+    let mut projected = 0usize;
+    for sx in [-1.0, 1.0] {
+        for sz in [-1.0, 1.0] {
+            for sy in [0.0, 1.0] {
+                let point = transform.position
+                    + subject.right * (sx * half_w)
+                    + subject.forward * (sz * half_d)
+                    + subject.up * (sy * height);
+                let delta = point - camera.position;
+                let z = delta.dot(camera_basis.forward);
+                if z <= 0.05 {
+                    continue;
+                }
+                let x = 0.5 + 0.5 * delta.dot(camera_basis.right) / z / half_sensor_w;
+                let y = 0.5 - 0.5 * delta.dot(camera_basis.up) / z / half_sensor_h;
+                rect.min_x = rect.min_x.min(x);
+                rect.min_y = rect.min_y.min(y);
+                rect.max_x = rect.max_x.max(x);
+                rect.max_y = rect.max_y.max(y);
+                depth = depth.min(z);
+                projected += 1;
+            }
+        }
+    }
+    (projected > 0).then_some(ProjectedRect { rect, depth })
+}
+
+fn preserve_target_screen_y(
+    ctx: &SceneContext<'_>,
+    state: &mut CamState,
+    target: &TargetRef,
+    frame: Frame,
+    target_screen_y: f32,
+) {
+    let initial = state.rotation.pitch;
+    let target_y = target_screen_y.clamp(0.0, 1.0);
+    let error = |pitch: f32| {
+        let mut candidate = state.clone();
+        candidate.rotation.pitch = pitch;
+        project_target_rect(ctx, target, frame, &candidate).map_or(f32::INFINITY, |projected| {
+            let center = (projected.rect.min_y + projected.rect.max_y) * 0.5;
+            (center - target_y).abs()
+        })
+    };
+    let mut best = (initial, error(initial));
+    for step in 0..=120 {
+        let pitch = initial - 60.0 + step as f32;
+        let value = error(pitch);
+        if value < best.1 {
+            best = (pitch, value);
+        }
+    }
+    let mut low = best.0 - 1.0;
+    let mut high = best.0 + 1.0;
+    for _ in 0..24 {
+        let left = low + (high - low) / 3.0;
+        let right = high - (high - low) / 3.0;
+        if error(left) <= error(right) {
+            high = right;
+        } else {
+            low = left;
+        }
+    }
+    state.rotation.pitch = (low + high) * 0.5;
 }
 
 fn focal_for_subject_fraction(

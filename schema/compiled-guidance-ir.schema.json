@@ -1,0 +1,3608 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CompiledProject",
+  "type": "object",
+  "required": [
+    "aspect_ratio",
+    "coordinate_system",
+    "frame_rate",
+    "scenes",
+    "schema_version",
+    "source_id",
+    "source_schema_version",
+    "source_title"
+  ],
+  "properties": {
+    "aspect_ratio": {
+      "type": "number",
+      "format": "float"
+    },
+    "coordinate_system": {
+      "$ref": "#/definitions/CoordinateSystem"
+    },
+    "frame_rate": {
+      "$ref": "#/definitions/FrameRate"
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/CompiledScene"
+      }
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "source_id": {
+      "type": "string"
+    },
+    "source_schema_version": {
+      "type": "string"
+    },
+    "source_title": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "AxisName": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "z"
+      ]
+    },
+    "AxisObservation": {
+      "type": "object",
+      "required": [
+        "axis_id",
+        "side"
+      ],
+      "properties": {
+        "axis_id": {
+          "type": "string"
+        },
+        "side": {
+          "$ref": "#/definitions/AxisSide"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AxisPurpose": {
+      "type": "string",
+      "enum": [
+        "relationship",
+        "movement",
+        "eyeline",
+        "geography",
+        "custom"
+      ]
+    },
+    "AxisSide": {
+      "type": "string",
+      "enum": [
+        "positive",
+        "negative",
+        "on_axis"
+      ]
+    },
+    "Beat": {
+      "type": "object",
+      "required": [
+        "id",
+        "intent",
+        "range"
+      ],
+      "properties": {
+        "emphasis": {
+          "default": "medium",
+          "allOf": [
+            {
+              "$ref": "#/definitions/BeatEmphasis"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "intent": {
+          "type": "string"
+        },
+        "range": {
+          "$ref": "#/definitions/FrameRange"
+        },
+        "subject_ids": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "BeatEmphasis": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "climax"
+      ]
+    },
+    "CameraOperation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "op"
+          ],
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": [
+                "hold"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "degrees",
+            "op"
+          ],
+          "properties": {
+            "degrees": {
+              "type": "number",
+              "format": "float"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "pan"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "degrees",
+            "op"
+          ],
+          "properties": {
+            "degrees": {
+              "type": "number",
+              "format": "float"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "tilt"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "degrees",
+            "op"
+          ],
+          "properties": {
+            "degrees": {
+              "type": "number",
+              "format": "float"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "roll"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "distance_m",
+            "op"
+          ],
+          "properties": {
+            "distance_m": {
+              "type": "number",
+              "format": "float"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "dolly"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "distance_m",
+            "op"
+          ],
+          "properties": {
+            "distance_m": {
+              "type": "number",
+              "format": "float"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "truck"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "distance_m",
+            "op"
+          ],
+          "properties": {
+            "distance_m": {
+              "type": "number",
+              "format": "float"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "pedestal"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "delta",
+            "op"
+          ],
+          "properties": {
+            "delta": {
+              "$ref": "#/definitions/Vec3"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "translate"
+              ]
+            },
+            "space": {
+              "default": "camera_local",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/TransformSpace"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "delta_deg",
+            "op"
+          ],
+          "properties": {
+            "delta_deg": {
+              "$ref": "#/definitions/EulerDeg"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "rotate"
+              ]
+            },
+            "space": {
+              "default": "camera_local",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/TransformSpace"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "op",
+            "target"
+          ],
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": [
+                "look_at"
+              ]
+            },
+            "target": {
+              "$ref": "#/definitions/TargetRef"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "azimuth_deg",
+            "op",
+            "target"
+          ],
+          "properties": {
+            "azimuth_deg": {
+              "type": "number",
+              "format": "float"
+            },
+            "elevation_deg": {
+              "default": 0.0,
+              "type": "number",
+              "format": "float"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "orbit"
+              ]
+            },
+            "radius_m": {
+              "default": null,
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "target": {
+              "$ref": "#/definitions/TargetRef"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "offset",
+            "op",
+            "target"
+          ],
+          "properties": {
+            "damping": {
+              "description": "Backward-compatible 24 fps response coefficient. New documents should use `lag_half_life_s`.",
+              "default": 0.20000000298023224,
+              "type": "number",
+              "format": "float"
+            },
+            "lag_half_life_s": {
+              "description": "Time-domain lag. When present this is independent of frame rate.",
+              "default": null,
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "offset": {
+              "$ref": "#/definitions/Vec3"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "follow"
+              ]
+            },
+            "target": {
+              "$ref": "#/definitions/TargetRef"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "delta",
+            "op"
+          ],
+          "properties": {
+            "delta": {
+              "$ref": "#/definitions/Vec3"
+            },
+            "look_at": {
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/TargetRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "crane"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "op",
+            "to_focal_length_mm"
+          ],
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": [
+                "zoom"
+              ]
+            },
+            "to_focal_length_mm": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "op",
+            "target"
+          ],
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": [
+                "rack_focus"
+              ]
+            },
+            "target": {
+              "$ref": "#/definitions/TargetRef"
+            },
+            "to_distance_m": {
+              "default": null,
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "op",
+            "target",
+            "to_distance_m"
+          ],
+          "properties": {
+            "keep_subject_frame_fraction": {
+              "default": 0.4000000059604645,
+              "type": "number",
+              "format": "float"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "dolly_zoom"
+              ]
+            },
+            "target": {
+              "$ref": "#/definitions/TargetRef"
+            },
+            "to_distance_m": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "frequency_hz",
+            "op",
+            "rotation_amplitude_deg",
+            "seed",
+            "translation_amplitude_m"
+          ],
+          "properties": {
+            "frequency_hz": {
+              "type": "number",
+              "format": "float"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "handheld_noise"
+              ]
+            },
+            "rotation_amplitude_deg": {
+              "type": "number",
+              "format": "float"
+            },
+            "seed": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "translation_amplitude_m": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "lateral_distance_m",
+            "occluder",
+            "op",
+            "target"
+          ],
+          "properties": {
+            "lateral_distance_m": {
+              "type": "number",
+              "format": "float"
+            },
+            "occluder": {
+              "$ref": "#/definitions/TargetRef"
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "reveal"
+              ]
+            },
+            "preserve": {
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/RevealPreserveSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "target": {
+              "$ref": "#/definitions/TargetRef"
+            },
+            "visibility": {
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/RevealVisibilitySpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "CameraPlan": {
+      "type": "object",
+      "required": [
+        "initial_state"
+      ],
+      "properties": {
+        "initial_state": {
+          "$ref": "#/definitions/CameraState"
+        },
+        "operations": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TimedCameraOperation"
+          }
+        },
+        "rig": {
+          "default": "locked",
+          "allOf": [
+            {
+              "$ref": "#/definitions/CameraRig"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "CameraRig": {
+      "type": "string",
+      "enum": [
+        "locked",
+        "tripod",
+        "dolly",
+        "slider",
+        "jib",
+        "crane",
+        "handheld",
+        "shoulder",
+        "steadicam",
+        "gimbal",
+        "drone",
+        "vehicle_mount",
+        "virtual"
+      ]
+    },
+    "CameraState": {
+      "type": "object",
+      "required": [
+        "transform"
+      ],
+      "properties": {
+        "exposure": {
+          "default": {
+            "iso": 800,
+            "nd_stops": 0.0,
+            "shutter_angle_deg": 180.0,
+            "white_balance_k": 5600
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/ExposureState"
+            }
+          ]
+        },
+        "focus": {
+          "default": {
+            "distance_m": null,
+            "target": null
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/FocusState"
+            }
+          ]
+        },
+        "lens": {
+          "default": {
+            "anamorphic_squeeze": 1.0,
+            "aperture_f": 2.799999952316284,
+            "focal_length_mm": 50.0,
+            "sensor_width_mm": 36.0
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/LensState"
+            }
+          ]
+        },
+        "transform": {
+          "$ref": "#/definitions/Transform"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CameraTrack": {
+      "type": "object",
+      "required": [
+        "frames"
+      ],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SolvedCameraFrame"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "CompiledLightFrame": {
+      "type": "object",
+      "required": [
+        "color_temperature_k",
+        "frame",
+        "transform"
+      ],
+      "properties": {
+        "color_temperature_k": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "frame": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "intensity_lux": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "transform": {
+          "$ref": "#/definitions/Transform"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CompiledLightTrack": {
+      "type": "object",
+      "required": [
+        "frames",
+        "kind",
+        "role",
+        "setup_id",
+        "source_id"
+      ],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CompiledLightFrame"
+          }
+        },
+        "kind": {
+          "$ref": "#/definitions/LightKind"
+        },
+        "role": {
+          "$ref": "#/definitions/LightRole"
+        },
+        "setup_id": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CompiledPhase": {
+      "type": "object",
+      "required": [
+        "beat_ids",
+        "edit_range",
+        "id",
+        "kind",
+        "local_range",
+        "operation_indices"
+      ],
+      "properties": {
+        "beat_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "edit_range": {
+          "$ref": "#/definitions/FrameRange"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/PhaseKind"
+        },
+        "local_range": {
+          "$ref": "#/definitions/FrameRange"
+        },
+        "operation_indices": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "CompiledScene": {
+      "type": "object",
+      "required": [
+        "axes",
+        "beats",
+        "duration_frames",
+        "edit_timeline",
+        "id",
+        "light_tracks",
+        "lighting_setups",
+        "markers",
+        "narrative",
+        "shots",
+        "subjects",
+        "takes",
+        "title"
+      ],
+      "properties": {
+        "axes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ContinuityAxis"
+          }
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Beat"
+          }
+        },
+        "duration_frames": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "edit_timeline": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EditClip"
+          }
+        },
+        "id": {
+          "type": "string"
+        },
+        "light_tracks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CompiledLightTrack"
+          }
+        },
+        "lighting_setups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LightingSetup"
+          }
+        },
+        "markers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Marker"
+          }
+        },
+        "narrative": {
+          "$ref": "#/definitions/NarrativeIntent"
+        },
+        "shots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CompiledShot"
+          }
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SolvedSubjectTrack"
+          }
+        },
+        "takes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Take"
+          }
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CompiledShot": {
+      "type": "object",
+      "required": [
+        "camera_track",
+        "constraints",
+        "edit_range",
+        "edit_relation",
+        "evaluations",
+        "exposure_track",
+        "focus_track",
+        "id",
+        "intent",
+        "lens_track",
+        "phases",
+        "prohibitions",
+        "screen_tracks",
+        "source_range",
+        "subject_tracks",
+        "take_id"
+      ],
+      "properties": {
+        "camera_track": {
+          "$ref": "#/definitions/CameraTrack"
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShotConstraint"
+          }
+        },
+        "edit_range": {
+          "$ref": "#/definitions/FrameRange"
+        },
+        "edit_relation": {
+          "$ref": "#/definitions/EditRelation"
+        },
+        "evaluations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ConstraintEvaluation"
+          }
+        },
+        "exposure_track": {
+          "$ref": "#/definitions/ExposureTrack"
+        },
+        "focus_track": {
+          "$ref": "#/definitions/FocusTrack"
+        },
+        "id": {
+          "type": "string"
+        },
+        "intent": {
+          "$ref": "#/definitions/ShotIntent"
+        },
+        "lens_track": {
+          "$ref": "#/definitions/LensTrack"
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CompiledPhase"
+          }
+        },
+        "prohibitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Prohibition"
+          }
+        },
+        "screen_tracks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SubjectScreenTrack"
+          }
+        },
+        "source_range": {
+          "$ref": "#/definitions/FrameRange"
+        },
+        "subject_tracks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CompiledSubjectTrack"
+          }
+        },
+        "take_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CompiledSubjectTrack": {
+      "type": "object",
+      "required": [
+        "color",
+        "color_name",
+        "cues",
+        "dimensions_m",
+        "kind",
+        "name",
+        "subject_id",
+        "transforms"
+      ],
+      "properties": {
+        "color": {
+          "$ref": "#/definitions/Rgb"
+        },
+        "color_name": {
+          "type": "string"
+        },
+        "cues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SolvedCue"
+          }
+        },
+        "dimensions_m": {
+          "$ref": "#/definitions/Vec3"
+        },
+        "geometry_proxy": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/GeometryProxy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/definitions/SubjectKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "poses": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PoseTrack"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "subject_id": {
+          "type": "string"
+        },
+        "transforms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Transform"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Composition": {
+      "type": "object",
+      "properties": {
+        "depth_layers": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DepthLayer"
+          }
+        },
+        "headroom": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "lead_room": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "negative_space": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ScreenRegion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "strategy": {
+          "default": "natural",
+          "allOf": [
+            {
+              "$ref": "#/definitions/CompositionStrategy"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "CompositionStrategy": {
+      "type": "string",
+      "enum": [
+        "centered",
+        "rule_of_thirds",
+        "symmetric",
+        "asymmetric",
+        "golden_ratio",
+        "diagonal",
+        "frame_within_frame",
+        "deep_focus",
+        "flat",
+        "natural"
+      ]
+    },
+    "ConstraintEvaluation": {
+      "type": "object",
+      "required": [
+        "actual",
+        "constraint_id",
+        "requested",
+        "status"
+      ],
+      "properties": {
+        "actual": {
+          "type": "string"
+        },
+        "constraint_id": {
+          "type": "string"
+        },
+        "max_error": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "requested": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/ConstraintStatus"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConstraintStatus": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail",
+        "indeterminate"
+      ]
+    },
+    "ContinuityAnnotations": {
+      "type": "object",
+      "properties": {
+        "axis_observations": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AxisObservation"
+          }
+        },
+        "bridge": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ContinuityBridge"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "camera_azimuth_deg": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "direction_change_visible": {
+          "default": false,
+          "type": "boolean"
+        },
+        "eyelines": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EyelineObservation"
+          }
+        },
+        "screen_directions": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ScreenDirectionObservation"
+          }
+        },
+        "spatial_reset": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContinuityAxis": {
+      "type": "object",
+      "required": [
+        "from",
+        "id",
+        "name",
+        "purpose",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "$ref": "#/definitions/TargetRef"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "purpose": {
+          "$ref": "#/definitions/AxisPurpose"
+        },
+        "to": {
+          "$ref": "#/definitions/TargetRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContinuityBridge": {
+      "type": "string",
+      "enum": [
+        "visible_axis_cross",
+        "on_axis_shot",
+        "neutral_insert",
+        "reestablishing_shot",
+        "character_reblocking",
+        "deliberate_disorientation"
+      ]
+    },
+    "CoordinateSystem": {
+      "description": "World coordinate conventions carried by every document.\n\nOrientation semantics derived from these axes (used by the solver, views, and adapters — never assume a backend's convention):\n\n* A camera or subject with identity `rotation_deg` looks along `forward_axis` with `up_axis` as its up vector. Its right vector is `forward × up` for right-handed systems and `up × forward` for left-handed systems. * `yaw` rotates about `up_axis`, `pitch` about the right vector, `roll` about `forward_axis`; rotations compose as yaw, then pitch, then roll. * Positive rotations follow the physical right-hand rule about those vectors in every system, so `+yaw` always turns toward the camera's left and `+pitch` always tilts up regardless of which axes are chosen. This deliberately differs from Unity's Euler angles (which are left-hand-rule in its left-handed frame); adapters importing or exporting Unity data must negate the angles. * `forward_axis` must not be parallel to `up_axis` (validated).",
+      "type": "object",
+      "properties": {
+        "forward_axis": {
+          "default": "negative_z",
+          "allOf": [
+            {
+              "$ref": "#/definitions/SignedAxis"
+            }
+          ]
+        },
+        "handedness": {
+          "default": "right",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Handedness"
+            }
+          ]
+        },
+        "units": {
+          "default": "meters",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Unit"
+            }
+          ]
+        },
+        "up_axis": {
+          "default": "y",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AxisName"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "CoverageRole": {
+      "type": "string",
+      "enum": [
+        "master",
+        "two_shot",
+        "over_the_shoulder",
+        "single",
+        "close_up",
+        "point_of_view",
+        "reaction",
+        "insert",
+        "cutaway",
+        "detail",
+        "establishing",
+        "custom"
+      ]
+    },
+    "DepthLayer": {
+      "type": "object",
+      "required": [
+        "name",
+        "role"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/definitions/DepthRole"
+        },
+        "subject_ids": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "DepthRole": {
+      "type": "string",
+      "enum": [
+        "foreground",
+        "midground",
+        "background"
+      ]
+    },
+    "Easing": {
+      "type": "string",
+      "enum": [
+        "linear",
+        "ease_in",
+        "ease_out",
+        "ease_in_out",
+        "smooth_step",
+        "hold"
+      ]
+    },
+    "EditClip": {
+      "description": "Editorial selection from a take. `source_range` is in performance time; `edit_range` is in final-edit time and may overlap for transitions.",
+      "type": "object",
+      "required": [
+        "edit_range",
+        "id",
+        "source_range",
+        "take_id"
+      ],
+      "properties": {
+        "edit_range": {
+          "$ref": "#/definitions/FrameRange"
+        },
+        "id": {
+          "type": "string"
+        },
+        "source_range": {
+          "$ref": "#/definitions/FrameRange"
+        },
+        "take_id": {
+          "type": "string"
+        },
+        "transition_in": {
+          "default": {
+            "curve": "hold",
+            "direction": null,
+            "duration_frames": 0,
+            "kind": "cut",
+            "match_anchor": null
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/TransitionSpec"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "EditRelation": {
+      "type": "object",
+      "required": [
+        "relations",
+        "transition_in"
+      ],
+      "properties": {
+        "next_shot_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "previous_shot_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShotRelation"
+          }
+        },
+        "transition_in": {
+          "$ref": "#/definitions/TransitionSpec"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EmotionalBeat": {
+      "type": "object",
+      "required": [
+        "frame",
+        "label"
+      ],
+      "properties": {
+        "arousal": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "frame": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "label": {
+          "type": "string"
+        },
+        "valence": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EulerDeg": {
+      "type": "object",
+      "properties": {
+        "pitch": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "roll": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "yaw": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ExposureFrame": {
+      "type": "object",
+      "required": [
+        "frame",
+        "iso",
+        "nd_stops",
+        "shutter_angle_deg",
+        "white_balance_k"
+      ],
+      "properties": {
+        "frame": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "iso": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "nd_stops": {
+          "type": "number",
+          "format": "float"
+        },
+        "shutter_angle_deg": {
+          "type": "number",
+          "format": "float"
+        },
+        "white_balance_k": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ExposureState": {
+      "type": "object",
+      "properties": {
+        "iso": {
+          "default": 800,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "nd_stops": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "shutter_angle_deg": {
+          "default": 180.0,
+          "type": "number",
+          "format": "float"
+        },
+        "white_balance_k": {
+          "default": 5600,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ExposureTrack": {
+      "type": "object",
+      "required": [
+        "frames"
+      ],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ExposureFrame"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "EyelineObservation": {
+      "type": "object",
+      "required": [
+        "screen_direction",
+        "subject_id",
+        "target"
+      ],
+      "properties": {
+        "screen_direction": {
+          "$ref": "#/definitions/HorizontalDirection"
+        },
+        "subject_id": {
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/definitions/TargetRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FocusFrame": {
+      "type": "object",
+      "required": [
+        "frame"
+      ],
+      "properties": {
+        "distance_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "frame": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TargetRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "FocusState": {
+      "type": "object",
+      "properties": {
+        "distance_m": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "target": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TargetRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "FocusTrack": {
+      "type": "object",
+      "required": [
+        "frames"
+      ],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FocusFrame"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "FrameRange": {
+      "type": "object",
+      "required": [
+        "end",
+        "start"
+      ],
+      "properties": {
+        "end": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "start": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "FrameRate": {
+      "type": "object",
+      "required": [
+        "numerator"
+      ],
+      "properties": {
+        "denominator": {
+          "default": 1,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "numerator": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Framing": {
+      "type": "object",
+      "required": [
+        "shot_size"
+      ],
+      "properties": {
+        "composition": {
+          "default": {
+            "depth_layers": [],
+            "headroom": null,
+            "lead_room": null,
+            "negative_space": null,
+            "notes": [],
+            "strategy": "natural"
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Composition"
+            }
+          ]
+        },
+        "horizontal_angle": {
+          "default": "custom",
+          "allOf": [
+            {
+              "$ref": "#/definitions/HorizontalAngle"
+            }
+          ]
+        },
+        "roll_deg": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "shot_size": {
+          "$ref": "#/definitions/ShotSize"
+        },
+        "subject_ids": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "vertical_angle": {
+          "default": "eye_level",
+          "allOf": [
+            {
+              "$ref": "#/definitions/VerticalAngle"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "GeometryProxy": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "box"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "capsule_rig"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "plane"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "wall"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "height_m",
+            "kind",
+            "width_m"
+          ],
+          "properties": {
+            "height_m": {
+              "type": "number",
+              "format": "float"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "doorway"
+              ]
+            },
+            "width_m": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "points"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "convex_hull"
+              ]
+            },
+            "points": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Vec3"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "uri"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "mesh_ref"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "silhouette_card"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Handedness": {
+      "type": "string",
+      "enum": [
+        "left",
+        "right"
+      ]
+    },
+    "HorizontalAngle": {
+      "type": "string",
+      "enum": [
+        "frontal",
+        "three_quarter",
+        "profile",
+        "rear_three_quarter",
+        "rear",
+        "point_of_view",
+        "over_the_shoulder",
+        "custom"
+      ]
+    },
+    "HorizontalDirection": {
+      "type": "string",
+      "enum": [
+        "left",
+        "right",
+        "center"
+      ]
+    },
+    "LensFrame": {
+      "type": "object",
+      "required": [
+        "anamorphic_squeeze",
+        "aperture_f",
+        "focal_length_mm",
+        "frame",
+        "sensor_width_mm"
+      ],
+      "properties": {
+        "anamorphic_squeeze": {
+          "type": "number",
+          "format": "float"
+        },
+        "aperture_f": {
+          "type": "number",
+          "format": "float"
+        },
+        "focal_length_mm": {
+          "type": "number",
+          "format": "float"
+        },
+        "frame": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "sensor_width_mm": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LensState": {
+      "type": "object",
+      "properties": {
+        "anamorphic_squeeze": {
+          "default": 1.0,
+          "type": "number",
+          "format": "float"
+        },
+        "aperture_f": {
+          "default": 2.799999952316284,
+          "type": "number",
+          "format": "float"
+        },
+        "focal_length_mm": {
+          "default": 50.0,
+          "type": "number",
+          "format": "float"
+        },
+        "sensor_width_mm": {
+          "default": 36.0,
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LensTrack": {
+      "type": "object",
+      "required": [
+        "frames"
+      ],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LensFrame"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "LightKind": {
+      "type": "string",
+      "enum": [
+        "point",
+        "spot",
+        "area",
+        "directional",
+        "practical",
+        "environment",
+        "emissive_surface"
+      ]
+    },
+    "LightRole": {
+      "type": "string",
+      "enum": [
+        "key",
+        "fill",
+        "back",
+        "rim",
+        "background",
+        "practical",
+        "ambient",
+        "motivated"
+      ]
+    },
+    "LightSource": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "role",
+        "transform"
+      ],
+      "properties": {
+        "color_temperature_k": {
+          "default": 5600,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "id": {
+          "type": "string"
+        },
+        "intensity_lux": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "kind": {
+          "$ref": "#/definitions/LightKind"
+        },
+        "motivated_by": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role": {
+          "$ref": "#/definitions/LightRole"
+        },
+        "transform": {
+          "$ref": "#/definitions/Transform"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LightingSetup": {
+      "type": "object",
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "contrast_ratio": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "notes": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sources": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LightSource"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Marker": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "position"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "position": {
+          "$ref": "#/definitions/Vec3"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MatchAnchor": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_frame": {
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "subject_id": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target_frame": {
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "NarrativeIntent": {
+      "type": "object",
+      "properties": {
+        "desired_audience_state": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dramatic_question": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "emotional_arc": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EmotionalBeat"
+          }
+        },
+        "themes": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "NormalizedRect": {
+      "type": "object",
+      "required": [
+        "max_x",
+        "max_y",
+        "min_x",
+        "min_y"
+      ],
+      "properties": {
+        "max_x": {
+          "type": "number",
+          "format": "float"
+        },
+        "max_y": {
+          "type": "number",
+          "format": "float"
+        },
+        "min_x": {
+          "type": "number",
+          "format": "float"
+        },
+        "min_y": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PhaseKind": {
+      "type": "string",
+      "enum": [
+        "hold",
+        "motion",
+        "focus",
+        "reveal",
+        "settle",
+        "mixed"
+      ]
+    },
+    "PoseFrame": {
+      "type": "object",
+      "required": [
+        "frame"
+      ],
+      "properties": {
+        "contacts": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "frame": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "gaze": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TargetRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "joints": {
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Vec3"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "PoseTrack": {
+      "type": "object",
+      "properties": {
+        "frames": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PoseFrame"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Prohibition": {
+      "type": "string",
+      "enum": [
+        "actor_translation_as_camera_substitute",
+        "digital_crop_as_dolly_substitute",
+        "background_deformation_as_parallax_substitute",
+        "global_blur_as_rack_focus_substitute",
+        "handheld_motion",
+        "unplanned_cut"
+      ]
+    },
+    "RevealPreserveSpec": {
+      "type": "object",
+      "properties": {
+        "target_screen_y": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "RevealVisibilitySpec": {
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": "number",
+          "format": "float"
+        },
+        "monotonic": {
+          "default": true,
+          "type": "boolean"
+        },
+        "to": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Rgb": {
+      "type": "object",
+      "required": [
+        "b",
+        "g",
+        "r"
+      ],
+      "properties": {
+        "b": {
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        },
+        "g": {
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        },
+        "r": {
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ScreenDirection": {
+      "type": "string",
+      "enum": [
+        "left",
+        "right",
+        "stationary",
+        "toward_camera",
+        "away_from_camera"
+      ]
+    },
+    "ScreenDirectionObservation": {
+      "type": "object",
+      "required": [
+        "direction",
+        "subject_id"
+      ],
+      "properties": {
+        "direction": {
+          "$ref": "#/definitions/ScreenDirection"
+        },
+        "subject_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ScreenPoint": {
+      "type": "object",
+      "required": [
+        "x",
+        "y"
+      ],
+      "properties": {
+        "x": {
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ScreenRegion": {
+      "type": "string",
+      "enum": [
+        "left",
+        "right",
+        "top",
+        "bottom",
+        "center"
+      ]
+    },
+    "ShotConstraint": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "range",
+        "source_path",
+        "tolerance"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/ShotConstraintKind"
+        },
+        "range": {
+          "$ref": "#/definitions/FrameRange"
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "tolerance": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ShotConstraintKind": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "subject_id",
+            "target"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "subject_bbox_height"
+              ]
+            },
+            "subject_id": {
+              "type": "string"
+            },
+            "target": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "subject_id",
+            "target"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "subject_screen_center"
+              ]
+            },
+            "subject_id": {
+              "type": "string"
+            },
+            "target": {
+              "$ref": "#/definitions/ScreenPoint"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "subject_id",
+            "target"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "subject_screen_y"
+              ]
+            },
+            "subject_id": {
+              "type": "string"
+            },
+            "target": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "subject_ids",
+            "trend"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "pair_screen_separation"
+              ]
+            },
+            "subject_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "trend": {
+              "$ref": "#/definitions/Trend"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "target_roll_deg"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "horizon_lock"
+              ]
+            },
+            "target_roll_deg": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "no_camera_motion"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "from",
+            "kind",
+            "monotonic",
+            "subject_id",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "type": "number",
+              "format": "float"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "reveal_visibility"
+              ]
+            },
+            "monotonic": {
+              "type": "boolean"
+            },
+            "subject_id": {
+              "type": "string"
+            },
+            "to": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "target"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "focus_handoff"
+              ]
+            },
+            "target": {
+              "$ref": "#/definitions/TargetRef"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "shot_size"
+              ]
+            },
+            "value": {
+              "$ref": "#/definitions/ShotSize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "horizontal_angle"
+              ]
+            },
+            "value": {
+              "$ref": "#/definitions/HorizontalAngle"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "vertical_angle"
+              ]
+            },
+            "value": {
+              "$ref": "#/definitions/VerticalAngle"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "composition"
+              ]
+            },
+            "value": {
+              "$ref": "#/definitions/Composition"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "depth_layers"
+              ]
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/DepthLayer"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "observations"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "continuity_axis"
+              ]
+            },
+            "observations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/AxisObservation"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "camera_rig"
+              ]
+            },
+            "value": {
+              "$ref": "#/definitions/CameraRig"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "target"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "anamorphic_squeeze"
+              ]
+            },
+            "target": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "exposure"
+              ]
+            },
+            "value": {
+              "$ref": "#/definitions/ExposureState"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "lighting"
+              ]
+            },
+            "setup_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "transition"
+              ]
+            },
+            "value": {
+              "$ref": "#/definitions/TransitionSpec"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ShotIntent": {
+      "type": "object",
+      "required": [
+        "camera",
+        "continuity",
+        "coverage_role",
+        "framing",
+        "notes",
+        "phrases",
+        "purpose",
+        "relations",
+        "source_path",
+        "transition_in"
+      ],
+      "properties": {
+        "camera": {
+          "$ref": "#/definitions/CameraPlan"
+        },
+        "continuity": {
+          "$ref": "#/definitions/ContinuityAnnotations"
+        },
+        "coverage_role": {
+          "$ref": "#/definitions/CoverageRole"
+        },
+        "framing": {
+          "$ref": "#/definitions/Framing"
+        },
+        "lighting": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LightingSetup"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lighting_setup_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "phrases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShotPhrase"
+          }
+        },
+        "purpose": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShotPurpose"
+          }
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShotRelation"
+          }
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "transition_in": {
+          "$ref": "#/definitions/TransitionSpec"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ShotPhrase": {
+      "type": "string",
+      "enum": [
+        "pressure_push_in",
+        "subject_lock_dolly_zoom",
+        "foreground_parallax_reveal",
+        "visible_axis_cross",
+        "rack_focus_reveal",
+        "reaction_hold",
+        "walk_and_talk_follow",
+        "orbit_relationship_shift"
+      ]
+    },
+    "ShotPurpose": {
+      "type": "string",
+      "enum": [
+        "establish",
+        "orient",
+        "reveal",
+        "emphasize",
+        "observe",
+        "identify",
+        "connect",
+        "isolate",
+        "subjective",
+        "reaction",
+        "transition",
+        "disorient"
+      ]
+    },
+    "ShotRelation": {
+      "type": "object",
+      "required": [
+        "kind",
+        "shot_id"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/ShotRelationKind"
+        },
+        "shot_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ShotRelationKind": {
+      "type": "string",
+      "enum": [
+        "establishes",
+        "narrows_from",
+        "reverse_of",
+        "reaction_to",
+        "reveals_from",
+        "matches_action_from",
+        "crosses_axis_from",
+        "reestablishes_after"
+      ]
+    },
+    "ShotSize": {
+      "type": "string",
+      "enum": [
+        "extreme_long",
+        "long",
+        "medium_long",
+        "medium",
+        "medium_close_up",
+        "close_up",
+        "extreme_close_up",
+        "insert",
+        "custom"
+      ]
+    },
+    "SignedAxis": {
+      "type": "string",
+      "enum": [
+        "positive_x",
+        "negative_x",
+        "positive_y",
+        "negative_y",
+        "positive_z",
+        "negative_z"
+      ]
+    },
+    "SolvedCameraFrame": {
+      "type": "object",
+      "required": [
+        "aperture_f",
+        "focal_length_mm",
+        "forward",
+        "frame",
+        "horizontal_fov_deg",
+        "position",
+        "right",
+        "rotation_deg",
+        "up"
+      ],
+      "properties": {
+        "aperture_f": {
+          "type": "number",
+          "format": "float"
+        },
+        "focal_length_mm": {
+          "type": "number",
+          "format": "float"
+        },
+        "focus_distance_m": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "focus_target": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TargetRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "forward": {
+          "description": "World-space unit vectors of the camera frame, so consumers never need to re-derive Euler conventions.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Vec3"
+            }
+          ]
+        },
+        "frame": {
+          "description": "Scene-local frame index.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "horizontal_fov_deg": {
+          "type": "number",
+          "format": "float"
+        },
+        "position": {
+          "$ref": "#/definitions/Vec3"
+        },
+        "right": {
+          "$ref": "#/definitions/Vec3"
+        },
+        "rotation_deg": {
+          "$ref": "#/definitions/EulerDeg"
+        },
+        "up": {
+          "$ref": "#/definitions/Vec3"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SolvedCue": {
+      "type": "object",
+      "required": [
+        "frame"
+      ],
+      "properties": {
+        "action": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "frame": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "gaze_target": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TargetRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "SolvedSubjectTrack": {
+      "description": "One subject sampled at every scene frame.",
+      "type": "object",
+      "required": [
+        "color",
+        "color_name",
+        "cues",
+        "dimensions_m",
+        "kind",
+        "name",
+        "subject_id",
+        "transforms"
+      ],
+      "properties": {
+        "color": {
+          "description": "Deterministic palette colour (ADR-1115 D10).",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Rgb"
+            }
+          ]
+        },
+        "color_name": {
+          "type": "string"
+        },
+        "cues": {
+          "description": "Non-geometric blocking cues (gaze, action text) in frame order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SolvedCue"
+          }
+        },
+        "dimensions_m": {
+          "description": "Resolved bounding size (width, height, depth) with kind defaults applied.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Vec3"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/definitions/SubjectKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "subject_id": {
+          "type": "string"
+        },
+        "transforms": {
+          "description": "`transforms[f]` is the subject's base transform at scene frame `f`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Transform"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SubjectKind": {
+      "type": "string",
+      "enum": [
+        "character",
+        "prop",
+        "vehicle",
+        "environment",
+        "screen",
+        "abstract"
+      ]
+    },
+    "SubjectScreenFrame": {
+      "type": "object",
+      "required": [
+        "bbox",
+        "center",
+        "frame",
+        "visible_fraction"
+      ],
+      "properties": {
+        "bbox": {
+          "$ref": "#/definitions/NormalizedRect"
+        },
+        "center": {
+          "$ref": "#/definitions/ScreenPoint"
+        },
+        "depth_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "focus_score": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "frame": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "visible_bbox": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/NormalizedRect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "visible_fraction": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SubjectScreenTrack": {
+      "type": "object",
+      "required": [
+        "frames",
+        "subject_id"
+      ],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SubjectScreenFrame"
+          }
+        },
+        "subject_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Take": {
+      "description": "Camera coverage over performance/story time. Takes may overlap.",
+      "type": "object",
+      "required": [
+        "camera_program",
+        "framing",
+        "id",
+        "performance_range"
+      ],
+      "properties": {
+        "camera_program": {
+          "$ref": "#/definitions/CameraPlan"
+        },
+        "continuity": {
+          "default": {
+            "axis_observations": [],
+            "bridge": null,
+            "camera_azimuth_deg": null,
+            "direction_change_visible": false,
+            "eyelines": [],
+            "screen_directions": [],
+            "spatial_reset": false
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/ContinuityAnnotations"
+            }
+          ]
+        },
+        "coverage_role": {
+          "default": "custom",
+          "allOf": [
+            {
+              "$ref": "#/definitions/CoverageRole"
+            }
+          ]
+        },
+        "framing": {
+          "$ref": "#/definitions/Framing"
+        },
+        "id": {
+          "type": "string"
+        },
+        "lighting_setup_id": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata": {
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "performance_range": {
+          "$ref": "#/definitions/FrameRange"
+        },
+        "phrases": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShotPhrase"
+          }
+        },
+        "purpose": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShotPurpose"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "TargetRef": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "type"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "subject"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "type"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "marker"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "position",
+            "type"
+          ],
+          "properties": {
+            "position": {
+              "$ref": "#/definitions/Vec3"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "point"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "TimedCameraOperation": {
+      "type": "object",
+      "required": [
+        "operation",
+        "range"
+      ],
+      "properties": {
+        "easing": {
+          "default": "ease_in_out",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Easing"
+            }
+          ]
+        },
+        "operation": {
+          "$ref": "#/definitions/CameraOperation"
+        },
+        "range": {
+          "description": "Shot-local, half-open frame range: [start, end).",
+          "allOf": [
+            {
+              "$ref": "#/definitions/FrameRange"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Transform": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "default": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Vec3"
+            }
+          ]
+        },
+        "rotation_deg": {
+          "default": {
+            "pitch": 0.0,
+            "roll": 0.0,
+            "yaw": 0.0
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/EulerDeg"
+            }
+          ]
+        },
+        "scale": {
+          "default": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Vec3"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "TransformSpace": {
+      "type": "string",
+      "enum": [
+        "world",
+        "camera_local"
+      ]
+    },
+    "Transition": {
+      "type": "string",
+      "enum": [
+        "cut",
+        "dissolve",
+        "fade",
+        "wipe",
+        "match_cut",
+        "jump_cut"
+      ]
+    },
+    "TransitionDirection": {
+      "type": "string",
+      "enum": [
+        "left",
+        "right",
+        "up",
+        "down",
+        "in",
+        "out"
+      ]
+    },
+    "TransitionSpec": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "curve": {
+          "default": "ease_in_out",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Easing"
+            }
+          ]
+        },
+        "direction": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TransitionDirection"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duration_frames": {
+          "default": 0,
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "kind": {
+          "$ref": "#/definitions/Transition"
+        },
+        "match_anchor": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/MatchAnchor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Trend": {
+      "type": "string",
+      "enum": [
+        "increasing",
+        "decreasing",
+        "stable"
+      ]
+    },
+    "Unit": {
+      "type": "string",
+      "enum": [
+        "meters",
+        "centimeters"
+      ]
+    },
+    "Vec3": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "y": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        },
+        "z": {
+          "default": 0.0,
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false
+    },
+    "VerticalAngle": {
+      "type": "string",
+      "enum": [
+        "overhead",
+        "high",
+        "eye_level",
+        "low",
+        "worms_eye",
+        "custom"
+      ]
+    }
+  }
+}

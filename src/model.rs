@@ -132,7 +132,14 @@ pub struct Scene {
     pub beats: Vec<Beat>,
     #[serde(default)]
     pub lighting_setups: Vec<LightingSetup>,
+    /// Legacy final-edit shots. New coverage workflows may additionally
+    /// declare overlapping `takes` and map them through `edit_timeline`.
+    #[serde(default)]
     pub shots: Vec<Shot>,
+    #[serde(default)]
+    pub takes: Vec<Take>,
+    #[serde(default)]
+    pub edit_timeline: Vec<EditClip>,
     #[serde(default)]
     pub metadata: BTreeMap<String, String>,
 }
@@ -178,6 +185,10 @@ pub struct Subject {
     /// substitute a per-`kind` default (e.g. 0.5 × 1.75 × 0.35 for characters).
     #[serde(default)]
     pub dimensions_m: Option<Vec3>,
+    #[serde(default)]
+    pub geometry_proxy: Option<GeometryProxy>,
+    #[serde(default)]
+    pub pose_track: Option<PoseTrack>,
     #[serde(default)]
     pub metadata: BTreeMap<String, String>,
 }
@@ -278,6 +289,18 @@ pub struct Shot {
     pub continuity: ContinuityAnnotations,
     #[serde(default)]
     pub transition_in: Transition,
+    /// Rich transition contract. When absent, `transition_in` remains the
+    /// backward-compatible source of transition kind.
+    #[serde(default)]
+    pub transition: Option<TransitionSpec>,
+    #[serde(default)]
+    pub relations: Vec<ShotRelation>,
+    /// Optional authored higher-level cinematography phrases. The compiler
+    /// also infers phrases from operations without replacing authored ones.
+    #[serde(default)]
+    pub phrases: Vec<ShotPhrase>,
+    #[serde(default)]
+    pub prohibit: Vec<Prohibition>,
     #[serde(default)]
     pub notes: Vec<String>,
     #[serde(default)]
@@ -632,7 +655,27 @@ pub enum CameraOperation {
         target: TargetRef,
         occluder: TargetRef,
         lateral_distance_m: f32,
+        #[serde(default)]
+        visibility: Option<RevealVisibilitySpec>,
+        #[serde(default)]
+        preserve: Option<RevealPreserveSpec>,
     },
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RevealVisibilitySpec {
+    pub from: f32,
+    pub to: f32,
+    #[serde(default = "default_true")]
+    pub monotonic: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct RevealPreserveSpec {
+    #[serde(default)]
+    pub target_screen_y: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Default)]
@@ -743,6 +786,173 @@ pub enum Transition {
     Wipe,
     MatchCut,
     JumpCut,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TransitionSpec {
+    pub kind: Transition,
+    #[serde(default)]
+    pub duration_frames: Frame,
+    #[serde(default)]
+    pub curve: Easing,
+    #[serde(default)]
+    pub match_anchor: Option<MatchAnchor>,
+    #[serde(default)]
+    pub direction: Option<TransitionDirection>,
+}
+
+impl TransitionSpec {
+    pub fn cut(kind: Transition) -> Self {
+        Self {
+            kind,
+            duration_frames: 0,
+            curve: Easing::Hold,
+            match_anchor: None,
+            direction: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MatchAnchor {
+    #[serde(default)]
+    pub subject_id: Option<String>,
+    #[serde(default)]
+    pub action: Option<String>,
+    #[serde(default)]
+    pub source_frame: Option<Frame>,
+    #[serde(default)]
+    pub target_frame: Option<Frame>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TransitionDirection {
+    Left,
+    Right,
+    Up,
+    Down,
+    In,
+    Out,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ShotRelation {
+    pub kind: ShotRelationKind,
+    pub shot_id: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ShotRelationKind {
+    Establishes,
+    NarrowsFrom,
+    ReverseOf,
+    ReactionTo,
+    RevealsFrom,
+    MatchesActionFrom,
+    CrossesAxisFrom,
+    ReestablishesAfter,
+}
+
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ShotPhrase {
+    PressurePushIn,
+    SubjectLockDollyZoom,
+    ForegroundParallaxReveal,
+    VisibleAxisCross,
+    RackFocusReveal,
+    ReactionHold,
+    WalkAndTalkFollow,
+    OrbitRelationshipShift,
+}
+
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Prohibition {
+    ActorTranslationAsCameraSubstitute,
+    DigitalCropAsDollySubstitute,
+    BackgroundDeformationAsParallaxSubstitute,
+    GlobalBlurAsRackFocusSubstitute,
+    HandheldMotion,
+    UnplannedCut,
+}
+
+/// Camera coverage over performance/story time. Takes may overlap.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Take {
+    pub id: String,
+    pub performance_range: FrameRange,
+    #[serde(default)]
+    pub purpose: Vec<ShotPurpose>,
+    #[serde(default)]
+    pub coverage_role: CoverageRole,
+    pub framing: Framing,
+    pub camera_program: CameraPlan,
+    #[serde(default)]
+    pub lighting_setup_id: Option<String>,
+    #[serde(default)]
+    pub continuity: ContinuityAnnotations,
+    #[serde(default)]
+    pub phrases: Vec<ShotPhrase>,
+    #[serde(default)]
+    pub notes: Vec<String>,
+    #[serde(default)]
+    pub metadata: BTreeMap<String, String>,
+}
+
+/// Editorial selection from a take. `source_range` is in performance time;
+/// `edit_range` is in final-edit time and may overlap for transitions.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct EditClip {
+    pub id: String,
+    pub take_id: String,
+    pub source_range: FrameRange,
+    pub edit_range: FrameRange,
+    #[serde(default = "default_cut_transition")]
+    pub transition_in: TransitionSpec,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum GeometryProxy {
+    Box,
+    CapsuleRig,
+    Plane,
+    Wall,
+    Doorway { width_m: f32, height_m: f32 },
+    ConvexHull { points: Vec<Vec3> },
+    MeshRef { uri: String },
+    SilhouetteCard,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct PoseTrack {
+    #[serde(default)]
+    pub frames: Vec<PoseFrame>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PoseFrame {
+    pub frame: Frame,
+    #[serde(default)]
+    pub joints: BTreeMap<String, Vec3>,
+    #[serde(default)]
+    pub gaze: Option<TargetRef>,
+    #[serde(default)]
+    pub contacts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -925,4 +1135,12 @@ fn default_damping() -> f32 {
 
 fn default_subject_fraction() -> f32 {
     0.4
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_cut_transition() -> TransitionSpec {
+    TransitionSpec::cut(Transition::Cut)
 }

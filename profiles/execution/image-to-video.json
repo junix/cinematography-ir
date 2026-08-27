@@ -1,0 +1,28 @@
+{
+  "name": "generic_image_to_video",
+  "model": {
+    "name": "generic_image_to_video",
+    "supports_text_timeline": true,
+    "supports_start_end_frames": true,
+    "supports_dense_control_video": false,
+    "supports_depth": false,
+    "supports_pose": false,
+    "supports_segmentation": false,
+    "supports_camera_trajectory": false,
+    "supports_negative_prompt": true,
+    "maximum_frames": 192
+  },
+  "passes": [
+    {
+      "kind": "beauty",
+      "encoding": "png8",
+      "color_space": "srgb",
+      "channels": "rgb",
+      "normalization": null,
+      "background_value": [0.0, 0.0, 0.0],
+      "file_pattern": "beauty/####.png"
+    }
+  ],
+  "resolution": [1024, 576],
+  "deterministic_seed": 42
+}

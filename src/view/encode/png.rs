@@ -1,5 +1,7 @@
-//! PNG encoder: rasterises the SVG rendering with `resvg` using only the
-//! embedded font, so output is byte-identical across machines.
+//! PNG encoder: rasterises the shared SVG representation with `resvg`.
+//! Latin text uses the embedded font for cross-machine determinism. Canvases
+//! containing non-Latin text additionally load the host's fallback fonts so
+//! CJK labels render as real glyphs instead of replacement boxes.
 
 use std::sync::Arc;
 
@@ -15,6 +17,14 @@ pub fn canvas_to_png(canvas: &Canvas, scale: f32) -> Result<Vec<u8>, ViewError> 
     let mut options = usvg::Options::default();
     let mut fontdb = usvg::fontdb::Database::new();
     fontdb.load_font_data(FONT.to_vec());
+    if canvas
+        .text_content()
+        .iter()
+        .flat_map(|text| text.chars())
+        .any(|character| character as u32 > 0xff)
+    {
+        fontdb.load_system_fonts();
+    }
     options.fontdb = Arc::new(fontdb);
     options.font_family = "Liberation Sans".to_owned();
     let tree = usvg::Tree::from_str(&svg, &options)

@@ -4,13 +4,15 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use cinematography_ir::execute::blender::{BlenderAdapter, BlenderOptions};
 use cinematography_ir::view::{
-    Encoding, LabelMode, Layout, OverlaySet, PanelKind, Sampling, StripAxis,
+    ControlProfile, Encoding, LabelMode, Layout, OverlaySet, PanelKind, Sampling, StripAxis,
+    ViewIntent,
 };
 use cinematography_ir::{
-    analyze_continuity, emit_project_prompts, load_project, render_summary, render_view,
-    save_project_json, solve_project, validate_project, CineProject, CinematographyAdapter,
-    ConditioningPass, Fidelity, FrameRange, PromptDialect, PromptOptions, Severity, SolveError,
-    SolveOptions, SolvedProject, ValidationReport, ViewRequest,
+    analyze_continuity, compile_project, emit_project_prompts, load_project, render_summary,
+    render_view, save_project_json, solve_project, validate_project, CineProject,
+    CinematographyAdapter, CompileOptions, ConditioningPass, ExecutionProfile, ExecutionRequest,
+    Fidelity, FrameRange, PassKind, PassSpec, PromptDialect, PromptOptions, Severity, SolveError,
+    SolveOptions, SolvedProject, ValidationReport, VideoModelProfile, ViewRequest,
 };
 use clap::{Parser, Subcommand};
 use schemars::schema_for;
@@ -60,6 +62,12 @@ enum Command {
         /// Emit the estimated-trajectory schema consumed by `compare`.
         #[arg(long)]
         estimated: bool,
+        /// Emit the shared Compiled Guidance IR schema.
+        #[arg(long)]
+        compiled: bool,
+        /// Emit the typed video-model execution profile schema.
+        #[arg(long)]
+        execution_profile: bool,
     },
     /// Compare an estimated camera trajectory (e.g. recovered from a generated video) with the solved intent.
     Compare {
@@ -73,6 +81,9 @@ enum Command {
         /// `none`, `translation`, or `similarity`.
         #[arg(long, default_value = "translation")]
         align: String,
+        /// `exact` or `dtw`; DTW is available for source/compiled guidance input.
+        #[arg(long, default_value = "exact")]
+        temporal: String,
         #[arg(long)]
         json: bool,
     },
@@ -82,10 +93,21 @@ enum Command {
         /// Write solved JSON here instead of stdout.
         #[arg(short, long)]
         output: Option<PathBuf>,
-        /// Solver fidelity: `draft` (kinematic) or `full` (not yet implemented).
+        /// Solver fidelity: `draft` (kinematic) or `full` (rig limits + proxy collisions).
         #[arg(long, default_value = "draft")]
         fidelity: String,
         /// Fail when the solver or validator reports warnings.
+        #[arg(long)]
+        deny_warnings: bool,
+    },
+    /// Compile source intent into shared phases, tracks, constraints, and edit relations.
+    Compile {
+        input: PathBuf,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Through-the-lens aspect ratio used for screen-space tracks.
+        #[arg(long, default_value_t = 16.0 / 9.0)]
+        aspect: f32,
         #[arg(long)]
         deny_warnings: bool,
     },
@@ -121,18 +143,25 @@ enum Command {
         /// Restrict to one scene id.
         #[arg(long)]
         scene: Option<String>,
-        /// `human` (labels, guides, diagnostics) or `conditioning` (geometry and arrows only).
-        #[arg(long, default_value = "human")]
+        /// `storyboard`, `motion`, `continuity`, `model-control`, `constraints`, or `comparison`.
+        #[arg(long, default_value = "storyboard")]
         intent: String,
         /// `none`, `color`, or `color+name` (default: color+name for human, color for conditioning).
         #[arg(long)]
         labels: Option<String>,
-        /// Panels per cell: `plan`, `frame`, or `plan,frame`.
+        /// Panels per cell: plan,frame,elevation,timeline,metrics.
         #[arg(long, default_value = "plan,frame")]
         panel: String,
-        /// `per-shot` (default), `per-beat`, `op-endpoints`, `every:N`, or `continuous[:FPS]`.
+        /// per-shot, per-beat, op-endpoints, semantic-events, phase-keyframes,
+        /// constraint-extrema, cut-pairs, every:N, or continuous[:FPS].
         #[arg(long)]
         sampling: Option<String>,
+        /// Operation cue scope: current, upcoming, or whole-shot.
+        #[arg(long, default_value = "current")]
+        cue_scope: String,
+        /// Emit a separate cue-map artifact for model-control profiles that support scribbles.
+        #[arg(long)]
+        cue_map: bool,
         /// Comma list of arrows,paths,axes,eyelines,directions,guides,diagnostics,grid,markers,all,none
         /// (default: all for human, arrows,paths for conditioning; conditioning never draws text).
         #[arg(long)]
@@ -164,12 +193,15 @@ enum RenderBackend {
     Blender {
         /// Cinematography IR (.yaml/.json) or a solved document from `cine-ir solve`.
         input: PathBuf,
-        /// Directory receiving `<scene_id>/{build.py,manifest.json,<pass>/####.png}`.
+        /// Directory receiving transactional scene and per-shot guidance bundles.
         #[arg(long)]
         out_dir: PathBuf,
-        /// Comma-separated passes: beauty,depth,normal,id,vector,openpose.
-        #[arg(long, default_value = "beauty,depth,normal,id")]
-        passes: String,
+        /// ExecutionProfile JSON. CLI pass/resolution options override it when present.
+        #[arg(long)]
+        profile: Option<PathBuf>,
+        /// Comma-separated passes: beauty,depth,depth_metric,normal,id,vector,openpose,occlusion,camera,pose_keypoints.
+        #[arg(long)]
+        passes: Option<String>,
         /// Restrict to one scene id.
         #[arg(long)]
         scene: Option<String>,
@@ -177,8 +209,8 @@ enum RenderBackend {
         #[arg(long)]
         frames: Option<String>,
         /// Output resolution, e.g. `1024x576`.
-        #[arg(long, default_value = "1024x576")]
-        resolution: String,
+        #[arg(long)]
+        resolution: Option<String>,
         /// Cycles samples for the beauty layer.
         #[arg(long, default_value_t = 32)]
         samples: u32,
@@ -191,6 +223,9 @@ enum RenderBackend {
         /// Write build.py and manifest.json without launching Blender.
         #[arg(long)]
         script_only: bool,
+        /// Per-scene Blender timeout in seconds; zero disables it.
+        #[arg(long, default_value_t = 1800)]
+        timeout: u64,
     },
 }
 
@@ -236,11 +271,25 @@ fn main() -> Result<()> {
             output,
             solved,
             estimated,
+            compiled,
+            execution_profile,
         } => {
+            if [solved, estimated, compiled, execution_profile]
+                .into_iter()
+                .filter(|selected| *selected)
+                .count()
+                > 1
+            {
+                anyhow::bail!("choose only one schema variant");
+            }
             let schema = if solved {
                 schema_for!(cinematography_ir::SolvedProject)
+            } else if compiled {
+                schema_for!(cinematography_ir::CompiledProject)
             } else if estimated {
                 schema_for!(cinematography_ir::compare::EstimatedTrajectory)
+            } else if execution_profile {
+                schema_for!(cinematography_ir::ExecutionProfile)
             } else {
                 schema_for!(CineProject)
             };
@@ -281,6 +330,32 @@ fn main() -> Result<()> {
             }
             if deny_warnings && solved.report.has_warnings() {
                 std::process::exit(2);
+            }
+        }
+        Command::Compile {
+            input,
+            output,
+            aspect,
+            deny_warnings,
+        } => {
+            let project = load_project(&input)?;
+            let compiled = compile_project(
+                &project,
+                &CompileOptions {
+                    aspect_ratio: aspect,
+                    ..CompileOptions::default()
+                },
+            )
+            .map_err(anyhow::Error::new)?;
+            eprint_report(&compiled.report);
+            if compiled.report.has_errors() || (deny_warnings && compiled.report.has_warnings()) {
+                std::process::exit(2);
+            }
+            let text = format!("{}\n", serde_json::to_string_pretty(&compiled.compiled)?);
+            match output {
+                Some(path) => fs::write(&path, text)
+                    .with_context(|| format!("failed to write {}", path.display()))?,
+                None => print!("{text}"),
             }
         }
         Command::Prompt {
@@ -332,10 +407,13 @@ fn main() -> Result<()> {
             estimate,
             scene,
             align,
+            temporal,
             json,
         } => {
-            use cinematography_ir::compare::{compare_trajectories, render_report, Alignment};
-            let solved = load_solved_or_project(&input)?;
+            use cinematography_ir::compare::{
+                compare_compiled_guidance_with_temporal, compare_trajectories,
+                render_compiled_report, render_report, Alignment, TemporalAlignment,
+            };
             let text = fs::read_to_string(&estimate)
                 .with_context(|| format!("failed to read {}", estimate.display()))?;
             let estimated: cinematography_ir::compare::EstimatedTrajectory =
@@ -347,23 +425,61 @@ fn main() -> Result<()> {
                 "similarity" | "scale" => Alignment::Similarity,
                 other => anyhow::bail!("unknown alignment '{other}'"),
             };
-            let target = match &scene {
-                Some(id) => solved
-                    .scene(id)
-                    .ok_or_else(|| anyhow::anyhow!("no scene '{id}'"))?,
-                None => solved
-                    .scenes
-                    .first()
-                    .ok_or_else(|| anyhow::anyhow!("document has no scenes"))?,
+            let temporal_alignment = match temporal.as_str() {
+                "exact" | "frame" => TemporalAlignment::Exact,
+                "dtw" | "dynamic-time-warping" => TemporalAlignment::DynamicTimeWarping,
+                other => anyhow::bail!("unknown temporal alignment '{other}'"),
             };
-            let report = compare_trajectories(target, &estimated, alignment);
-            if json {
-                println!("{}", serde_json::to_string_pretty(&report)?);
+            if let Ok(project) = load_project(&input) {
+                let compiled = compile_project(&project, &CompileOptions::default())?.compiled;
+                let target = match &scene {
+                    Some(id) => compiled
+                        .scene(id)
+                        .ok_or_else(|| anyhow::anyhow!("no scene '{id}'"))?,
+                    None => compiled
+                        .scenes
+                        .first()
+                        .ok_or_else(|| anyhow::anyhow!("document has no scenes"))?,
+                };
+                let report = compare_compiled_guidance_with_temporal(
+                    target,
+                    &estimated,
+                    alignment,
+                    temporal_alignment,
+                );
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                } else {
+                    print!("{}", render_compiled_report(&report));
+                }
+                if report.shots.is_empty() {
+                    std::process::exit(1);
+                }
             } else {
-                print!("{}", render_report(&report));
-            }
-            if report.shots.is_empty() {
-                std::process::exit(1);
+                if temporal_alignment != TemporalAlignment::Exact {
+                    anyhow::bail!(
+                        "DTW requires source Cinematography IR so screen-space guidance is available"
+                    );
+                }
+                let solved = load_solved_or_project(&input)?;
+                let target = match &scene {
+                    Some(id) => solved
+                        .scene(id)
+                        .ok_or_else(|| anyhow::anyhow!("no scene '{id}'"))?,
+                    None => solved
+                        .scenes
+                        .first()
+                        .ok_or_else(|| anyhow::anyhow!("document has no scenes"))?,
+                };
+                let report = compare_trajectories(target, &estimated, alignment);
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                } else {
+                    print!("{}", render_report(&report));
+                }
+                if report.shots.is_empty() {
+                    std::process::exit(1);
+                }
             }
         }
         Command::View {
@@ -373,6 +489,8 @@ fn main() -> Result<()> {
             labels,
             panel,
             sampling,
+            cue_scope,
+            cue_map,
             overlay,
             layout,
             format,
@@ -386,6 +504,8 @@ fn main() -> Result<()> {
                 labels.as_deref(),
                 &panel,
                 sampling.as_deref(),
+                &cue_scope,
+                cue_map,
                 overlay.as_deref(),
                 &layout,
                 &format,
@@ -406,6 +526,7 @@ fn main() -> Result<()> {
                 RenderBackend::Blender {
                     input,
                     out_dir,
+                    profile,
                     passes,
                     scene,
                     frames,
@@ -414,11 +535,44 @@ fn main() -> Result<()> {
                     dof,
                     blender,
                     script_only,
+                    timeout,
                 },
         } => {
-            let solved = load_solved_or_project(&input)?;
-            let passes = ConditioningPass::parse_list(&passes).map_err(|e| anyhow::anyhow!(e))?;
-            let resolution = parse_resolution(&resolution)?;
+            let mut execution_profile = profile
+                .as_ref()
+                .map(load_execution_profile)
+                .transpose()?
+                .unwrap_or_else(|| ExecutionProfile {
+                    name: "cli_blender".to_owned(),
+                    model: VideoModelProfile::default(),
+                    passes: ConditioningPass::parse_list("beauty,depth,normal,id")
+                        .expect("built-in pass list is valid")
+                        .into_iter()
+                        .map(|pass| PassSpec::for_conditioning(pass, 0.1, 100.0))
+                        .collect(),
+                    resolution: [1024, 576],
+                    deterministic_seed: 42,
+                });
+            if let Some(passes) = passes.as_deref() {
+                execution_profile.passes = ConditioningPass::parse_list(passes)
+                    .map_err(|e| anyhow::anyhow!(e))?
+                    .into_iter()
+                    .map(|pass| PassSpec::for_conditioning(pass, 0.1, 100.0))
+                    .collect();
+            }
+            if let Some(resolution) = resolution.as_deref() {
+                let value = parse_resolution(resolution)?;
+                execution_profile.resolution = [value.0, value.1];
+            }
+            let passes: Vec<_> = execution_profile
+                .passes
+                .iter()
+                .map(|spec| pass_kind_to_conditioning(spec.kind))
+                .collect();
+            let resolution = (
+                execution_profile.resolution[0],
+                execution_profile.resolution[1],
+            );
             let range = frames.as_deref().map(parse_frame_range).transpose()?;
             let mut adapter = BlenderAdapter::new(BlenderOptions {
                 resolution,
@@ -426,20 +580,57 @@ fn main() -> Result<()> {
                 use_dof: dof,
                 blender_path: blender,
                 script_only,
+                timeout_s: timeout,
             });
-            let mut staged = 0;
-            for solved_scene in &solved.scenes {
-                if scene.as_deref().is_some_and(|id| id != solved_scene.id) {
-                    continue;
+            if let Ok(project) = load_project(&input) {
+                let output = compile_project(
+                    &project,
+                    &CompileOptions {
+                        aspect_ratio: resolution.0 as f32 / resolution.1.max(1) as f32,
+                        ..CompileOptions::default()
+                    },
+                )?;
+                let profile = execution_profile;
+                let mut staged = Vec::new();
+                for compiled_scene in &output.compiled.scenes {
+                    if scene.as_deref().is_some_and(|id| id != compiled_scene.id) {
+                        continue;
+                    }
+                    adapter.stage_scene(&output.compiled, compiled_scene, &profile)?;
+                    staged.push(compiled_scene.id.clone());
                 }
-                adapter.apply_scene(&solved, solved_scene)?;
-                staged += 1;
+                if staged.is_empty() {
+                    anyhow::bail!("no scene matched");
+                }
+                let mut bundles = Vec::new();
+                for scene_id in staged {
+                    bundles.push(adapter.execute(
+                        &ExecutionRequest {
+                            scene_id,
+                            shot_ids: Vec::new(),
+                            frame_range: range,
+                            profile: profile.clone(),
+                        },
+                        &out_dir,
+                    )?);
+                }
+                println!("{}", serde_json::to_string_pretty(&bundles)?);
+            } else {
+                let solved = load_solved_or_project(&input)?;
+                let mut staged = 0;
+                for solved_scene in &solved.scenes {
+                    if scene.as_deref().is_some_and(|id| id != solved_scene.id) {
+                        continue;
+                    }
+                    adapter.apply_scene(&solved, solved_scene)?;
+                    staged += 1;
+                }
+                if staged == 0 {
+                    anyhow::bail!("no scene matched");
+                }
+                let output = adapter.render_passes(range, &passes, &out_dir)?;
+                println!("{}", serde_json::to_string_pretty(&output)?);
             }
-            if staged == 0 {
-                anyhow::bail!("no scene matched");
-            }
-            let output = adapter.render_passes(range, &passes, &out_dir)?;
-            println!("{}", serde_json::to_string_pretty(&output)?);
         }
     }
 
@@ -453,15 +644,55 @@ fn build_view_request(
     labels: Option<&str>,
     panel: &str,
     sampling: Option<&str>,
+    cue_scope: &str,
+    cue_map: bool,
     overlay: Option<&str>,
     layout: &str,
     format: &str,
     aspect: f32,
 ) -> Result<ViewRequest> {
     let mut request = match intent {
-        "human" => ViewRequest::human(),
-        "conditioning" | "cond" => ViewRequest::conditioning(),
-        other => anyhow::bail!("unknown intent '{other}'; expected human or conditioning"),
+        "human" | "storyboard" => ViewRequest::human(),
+        "conditioning" | "cond" | "model-control" => ViewRequest::conditioning(),
+        "motion" | "motion-grammar" => {
+            let mut request = ViewRequest::human();
+            request.view_intent = ViewIntent::MotionGrammar;
+            request
+        }
+        "continuity" => {
+            let mut request = ViewRequest::human();
+            request.view_intent = ViewIntent::ContinuityReview;
+            request.sampling = Sampling::CutPairs;
+            request
+        }
+        "constraints" | "diagnostics" => {
+            let mut request = ViewRequest::human();
+            request.view_intent = ViewIntent::ConstraintDiagnostics;
+            request.sampling = Sampling::ConstraintExtrema;
+            request
+        }
+        "comparison" | "generated-comparison" => {
+            let mut request = ViewRequest::human();
+            request.view_intent = ViewIntent::GeneratedComparison;
+            request
+        }
+        other => anyhow::bail!("unknown view intent '{other}'"),
+    };
+    if matches!(request.view_intent, ViewIntent::ModelControl(_)) {
+        request.view_intent = ViewIntent::ModelControl(ControlProfile {
+            include_cue_map: cue_map,
+            ..ControlProfile::default()
+        });
+    } else if cue_map {
+        anyhow::bail!("--cue-map is only valid with --intent model-control");
+    }
+    request.cue_scope = match cue_scope {
+        "current" => cinematography_ir::view::CueScope::Current,
+        "upcoming" | "current-and-upcoming" => {
+            cinematography_ir::view::CueScope::CurrentAndUpcoming
+        }
+        "whole-shot" | "summary" => cinematography_ir::view::CueScope::WholeShotSummary,
+        other => anyhow::bail!("unknown cue scope '{other}'"),
     };
     request.scene_id = scene;
     if let Some(labels) = labels {
@@ -477,6 +708,9 @@ fn build_view_request(
         .map(|p| match p.trim() {
             "plan" => Ok(PanelKind::Plan),
             "frame" => Ok(PanelKind::Frame),
+            "elevation" | "side" => Ok(PanelKind::Elevation),
+            "timeline" => Ok(PanelKind::Timeline),
+            "metrics" | "constraints" => Ok(PanelKind::Metrics),
             other => Err(anyhow::anyhow!("unknown panel '{other}'")),
         })
         .collect::<Result<Vec<_>>>()?;
@@ -519,6 +753,10 @@ fn build_view_request(
                 "per-shot" | "shot" => Sampling::PerShot,
                 "per-beat" | "beat" => Sampling::PerBeat,
                 "op-endpoints" | "ops" => Sampling::OperationEndpoints,
+                "semantic-events" | "events" => Sampling::SemanticEvents,
+                "phase-keyframes" | "phases" => Sampling::PhaseKeyframes,
+                "constraint-extrema" | "extrema" => Sampling::ConstraintExtrema,
+                "cut-pairs" | "cuts" => Sampling::CutPairs,
                 "continuous" => Sampling::Continuous { fps: 0 },
                 other => anyhow::bail!("unknown sampling '{other}'"),
             },
@@ -528,9 +766,13 @@ fn build_view_request(
         },
         None => match animate_fps {
             Some(fps) => Sampling::Continuous { fps },
-            None => Sampling::PerShot,
+            None => request.sampling.clone(),
         },
     };
+    if matches!(request.view_intent, ViewIntent::ModelControl(_)) {
+        request.overlays = OverlaySet::NONE;
+        request.labels = LabelMode::Color;
+    }
     request.encoding = match format.split_once(':') {
         None => match format {
             "svg" => Encoding::Svg,
@@ -636,6 +878,35 @@ fn load_solved_or_project(path: &PathBuf) -> Result<SolvedProject> {
             std::process::exit(2);
         }
         Err(error) => Err(error.into()),
+    }
+}
+
+fn load_execution_profile(path: &PathBuf) -> Result<ExecutionProfile> {
+    let text = fs::read_to_string(path)
+        .with_context(|| format!("failed to read execution profile {}", path.display()))?;
+    let profile: ExecutionProfile = serde_json::from_str(&text)
+        .with_context(|| format!("invalid execution profile {}", path.display()))?;
+    if profile.resolution[0] == 0 || profile.resolution[1] == 0 {
+        anyhow::bail!("execution profile resolution must be non-zero");
+    }
+    if profile.passes.is_empty() {
+        anyhow::bail!("execution profile must request at least one pass");
+    }
+    Ok(profile)
+}
+
+fn pass_kind_to_conditioning(kind: PassKind) -> ConditioningPass {
+    match kind {
+        PassKind::Beauty => ConditioningPass::Beauty,
+        PassKind::MetricDepth => ConditioningPass::DepthMetric,
+        PassKind::NormalizedDepth => ConditioningPass::Depth,
+        PassKind::Normal => ConditioningPass::Normal,
+        PassKind::SubjectId => ConditioningPass::ObjectIndex,
+        PassKind::OpticalFlow => ConditioningPass::Vector,
+        PassKind::PoseImage => ConditioningPass::OpenPose,
+        PassKind::PoseKeypoints => ConditioningPass::PoseKeypoints,
+        PassKind::Occlusion => ConditioningPass::Occlusion,
+        PassKind::Camera => ConditioningPass::Camera,
     }
 }
 

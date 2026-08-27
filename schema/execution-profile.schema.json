@@ -1,0 +1,209 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ExecutionProfile",
+  "type": "object",
+  "required": [
+    "deterministic_seed",
+    "model",
+    "name",
+    "passes",
+    "resolution"
+  ],
+  "properties": {
+    "deterministic_seed": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "model": {
+      "$ref": "#/definitions/VideoModelProfile"
+    },
+    "name": {
+      "type": "string"
+    },
+    "passes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/PassSpec"
+      }
+    },
+    "resolution": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0.0
+      },
+      "maxItems": 2,
+      "minItems": 2
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "ChannelLayout": {
+      "type": "string",
+      "enum": [
+        "gray",
+        "rgb",
+        "rgba",
+        "xy",
+        "json_records",
+        "matrix"
+      ]
+    },
+    "ColorSpace": {
+      "type": "string",
+      "enum": [
+        "srgb",
+        "linear",
+        "data"
+      ]
+    },
+    "Normalization": {
+      "type": "object",
+      "required": [
+        "maximum",
+        "minimum",
+        "near_is_white"
+      ],
+      "properties": {
+        "maximum": {
+          "type": "number",
+          "format": "float"
+        },
+        "minimum": {
+          "type": "number",
+          "format": "float"
+        },
+        "near_is_white": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PassKind": {
+      "type": "string",
+      "enum": [
+        "beauty",
+        "metric_depth",
+        "normalized_depth",
+        "normal",
+        "subject_id",
+        "optical_flow",
+        "pose_image",
+        "pose_keypoints",
+        "occlusion",
+        "camera"
+      ]
+    },
+    "PassSpec": {
+      "type": "object",
+      "required": [
+        "channels",
+        "color_space",
+        "encoding",
+        "file_pattern",
+        "kind"
+      ],
+      "properties": {
+        "background_value": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "channels": {
+          "$ref": "#/definitions/ChannelLayout"
+        },
+        "color_space": {
+          "$ref": "#/definitions/ColorSpace"
+        },
+        "encoding": {
+          "$ref": "#/definitions/PixelEncoding"
+        },
+        "file_pattern": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/PassKind"
+        },
+        "normalization": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Normalization"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "PixelEncoding": {
+      "type": "string",
+      "enum": [
+        "png8",
+        "png16",
+        "exr32_float",
+        "json",
+        "npz"
+      ]
+    },
+    "VideoModelProfile": {
+      "type": "object",
+      "required": [
+        "name",
+        "supports_camera_trajectory",
+        "supports_dense_control_video",
+        "supports_depth",
+        "supports_negative_prompt",
+        "supports_pose",
+        "supports_segmentation",
+        "supports_start_end_frames",
+        "supports_text_timeline"
+      ],
+      "properties": {
+        "maximum_frames": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "name": {
+          "type": "string"
+        },
+        "supports_camera_trajectory": {
+          "type": "boolean"
+        },
+        "supports_dense_control_video": {
+          "type": "boolean"
+        },
+        "supports_depth": {
+          "type": "boolean"
+        },
+        "supports_negative_prompt": {
+          "type": "boolean"
+        },
+        "supports_pose": {
+          "type": "boolean"
+        },
+        "supports_segmentation": {
+          "type": "boolean"
+        },
+        "supports_start_end_frames": {
+          "type": "boolean"
+        },
+        "supports_text_timeline": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

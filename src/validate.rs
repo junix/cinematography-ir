@@ -104,11 +104,11 @@ fn validate_scene(scene: &Scene, scene_index: usize, report: &mut ValidationRepo
             "scene duration must be greater than zero",
         ));
     }
-    if scene.shots.is_empty() {
+    if scene.shots.is_empty() && (scene.takes.is_empty() || scene.edit_timeline.is_empty()) {
         report.push(Diagnostic::error(
             "SCENE_HAS_NO_SHOTS",
             format!("{base}.shots"),
-            "scene must contain at least one shot on the edit timeline",
+            "scene must contain legacy shots or a takes + edit_timeline program",
         ));
     }
 
@@ -143,6 +143,18 @@ fn validate_scene(scene: &Scene, scene_index: usize, report: &mut ValidationRepo
         report,
     );
     check_unique_ids(
+        scene.takes.iter().map(|item| item.id.as_str()),
+        &format!("{base}.takes"),
+        "take",
+        report,
+    );
+    check_unique_ids(
+        scene.edit_timeline.iter().map(|item| item.id.as_str()),
+        &format!("{base}.edit_timeline"),
+        "edit clip",
+        report,
+    );
+    check_unique_ids(
         scene.lighting_setups.iter().map(|item| item.id.as_str()),
         &format!("{base}.lighting_setups"),
         "lighting setup",
@@ -166,6 +178,7 @@ fn validate_scene(scene: &Scene, scene_index: usize, report: &mut ValidationRepo
     validate_narrative(scene, &base, report);
     validate_lighting(scene, &base, report);
     validate_shot_timeline(scene, &base, report);
+    validate_take_edit_timeline(scene, &subjects, &markers, &axes, &lighting, &base, report);
 
     for (index, shot) in scene.shots.iter().enumerate() {
         validate_shot(
@@ -190,6 +203,49 @@ fn validate_subjects(scene: &Scene, base: &str, report: &mut ValidationReport) {
                     format!("{path}.dimensions_m"),
                     "subject dimensions must be positive on all axes",
                 ));
+            }
+        }
+        if let Some(GeometryProxy::Doorway { width_m, height_m }) = subject.geometry_proxy {
+            if !positive_finite(width_m) || !positive_finite(height_m) {
+                report.push(Diagnostic::error(
+                    "GEOMETRY_PROXY_DIMENSIONS_INVALID",
+                    format!("{path}.geometry_proxy"),
+                    "doorway proxy width and height must be finite and positive",
+                ));
+            }
+        }
+        if let Some(GeometryProxy::ConvexHull { points }) = &subject.geometry_proxy {
+            if points.len() < 4 || points.iter().any(|point| !point.is_finite()) {
+                report.push(Diagnostic::error(
+                    "GEOMETRY_PROXY_HULL_INVALID",
+                    format!("{path}.geometry_proxy.points"),
+                    "convex hull proxy requires at least four finite points",
+                ));
+            }
+        }
+        if let Some(pose) = &subject.pose_track {
+            let mut previous = None;
+            for (frame_index, frame) in pose.frames.iter().enumerate() {
+                let frame_path = format!("{path}.pose_track.frames[{frame_index}]");
+                if frame.frame > scene.duration_frames
+                    || previous.is_some_and(|value| frame.frame <= value)
+                {
+                    report.push(Diagnostic::error(
+                        "POSE_FRAME_INVALID",
+                        format!("{frame_path}.frame"),
+                        "pose frames must be strictly increasing and inside scene duration",
+                    ));
+                }
+                for (joint, position) in &frame.joints {
+                    if !position.is_finite() {
+                        report.push(Diagnostic::error(
+                            "POSE_JOINT_INVALID",
+                            format!("{frame_path}.joints[{joint}]"),
+                            "pose joint position must be finite",
+                        ));
+                    }
+                }
+                previous = Some(frame.frame);
             }
         }
     }
@@ -590,6 +646,9 @@ fn validate_shot(
 }
 
 fn validate_shot_timeline(scene: &Scene, scene_path: &str, report: &mut ValidationReport) {
+    if scene.shots.is_empty() {
+        return;
+    }
     let mut shots: Vec<&Shot> = scene.shots.iter().collect();
     shots.sort_by_key(|shot| (shot.range.start, shot.range.end));
 
@@ -638,6 +697,161 @@ fn validate_shot_timeline(scene: &Scene, scene_path: &str, report: &mut Validati
                 format!(
                     "edit timeline ends at frame {}, before scene duration {}",
                     last.range.end, scene.duration_frames
+                ),
+            ));
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_take_edit_timeline(
+    scene: &Scene,
+    subjects: &HashSet<&str>,
+    markers: &HashSet<&str>,
+    axes: &HashSet<&str>,
+    lighting: &HashSet<&str>,
+    scene_path: &str,
+    report: &mut ValidationReport,
+) {
+    if scene.takes.is_empty() && scene.edit_timeline.is_empty() {
+        return;
+    }
+    let take_ids: HashSet<&str> = scene.takes.iter().map(|take| take.id.as_str()).collect();
+    for (index, take) in scene.takes.iter().enumerate() {
+        let path = format!("{scene_path}.takes[{index}]");
+        validate_scene_range(
+            take.performance_range,
+            scene.duration_frames,
+            &format!("{path}.performance_range"),
+            report,
+        );
+        for subject_id in &take.framing.subject_ids {
+            if !subjects.contains(subject_id.as_str()) {
+                report.push(Diagnostic::error(
+                    "TAKE_SUBJECT_UNKNOWN",
+                    format!("{path}.framing.subject_ids"),
+                    format!("unknown subject '{subject_id}'"),
+                ));
+            }
+        }
+        if take
+            .lighting_setup_id
+            .as_ref()
+            .is_some_and(|id| !lighting.contains(id.as_str()))
+        {
+            report.push(Diagnostic::error(
+                "TAKE_LIGHTING_SETUP_UNKNOWN",
+                format!("{path}.lighting_setup_id"),
+                "take references an unknown lighting setup",
+            ));
+        }
+        validate_camera_state(
+            &take.camera_program.initial_state,
+            subjects,
+            markers,
+            &format!("{path}.camera_program.initial_state"),
+            report,
+        );
+        for (operation_index, timed) in take.camera_program.operations.iter().enumerate() {
+            let operation_path = format!("{path}.camera_program.operations[{operation_index}]");
+            if !timed.range.is_valid() || timed.range.end > take.performance_range.duration() {
+                report.push(Diagnostic::error(
+                    "TAKE_CAMERA_OPERATION_RANGE_INVALID",
+                    format!("{operation_path}.range"),
+                    "take operation must use a take-local range inside performance_range",
+                ));
+            }
+            validate_camera_operation(
+                &timed.operation,
+                subjects,
+                markers,
+                &format!("{operation_path}.operation"),
+                report,
+            );
+        }
+        for observation in &take.continuity.axis_observations {
+            if !axes.contains(observation.axis_id.as_str()) {
+                report.push(Diagnostic::error(
+                    "TAKE_CONTINUITY_AXIS_UNKNOWN",
+                    format!("{path}.continuity.axis_observations"),
+                    format!("unknown continuity axis '{}'", observation.axis_id),
+                ));
+            }
+        }
+    }
+
+    let mut clips: Vec<&EditClip> = scene.edit_timeline.iter().collect();
+    clips.sort_by_key(|clip| (clip.edit_range.start, clip.edit_range.end));
+    for (index, clip) in clips.iter().enumerate() {
+        let path = format!("{scene_path}.edit_timeline[{index}]");
+        validate_scene_range(
+            clip.edit_range,
+            scene.duration_frames,
+            &format!("{path}.edit_range"),
+            report,
+        );
+        if !clip.source_range.is_valid() {
+            report.push(Diagnostic::error(
+                "EDIT_SOURCE_RANGE_INVALID",
+                format!("{path}.source_range"),
+                "edit source range must be a valid half-open interval",
+            ));
+        }
+        let Some(take) = scene.takes.iter().find(|take| take.id == clip.take_id) else {
+            report.push(Diagnostic::error(
+                "EDIT_TAKE_UNKNOWN",
+                format!("{path}.take_id"),
+                format!("unknown take '{}'", clip.take_id),
+            ));
+            continue;
+        };
+        if !take_ids.contains(clip.take_id.as_str())
+            || clip.source_range.start < take.performance_range.start
+            || clip.source_range.end > take.performance_range.end
+        {
+            report.push(Diagnostic::error(
+                "EDIT_SOURCE_OUTSIDE_TAKE",
+                format!("{path}.source_range"),
+                "source range must lie inside the selected take's performance range",
+            ));
+        }
+        if clip.source_range.duration() != clip.edit_range.duration() {
+            report.push(Diagnostic::error(
+                "EDIT_RETIME_UNSUPPORTED",
+                path.clone(),
+                "source and edit durations must match until an explicit retime curve is authored",
+            ));
+        }
+        if clip.transition_in.duration_frames > clip.source_range.duration() {
+            report.push(Diagnostic::error(
+                "TRANSITION_DURATION_INVALID",
+                format!("{path}.transition_in.duration_frames"),
+                "transition duration cannot exceed the clip source duration",
+            ));
+        }
+    }
+    for pair in clips.windows(2) {
+        let previous = pair[0];
+        let next = pair[1];
+        if next.edit_range.start < previous.edit_range.end {
+            let overlap = previous.edit_range.end - next.edit_range.start;
+            if next.transition_in.duration_frames < overlap {
+                report.push(Diagnostic::error(
+                    "EDIT_TRANSITION_OVERLAP_UNDECLARED",
+                    format!("{scene_path}.edit_timeline[{}->{}]", previous.id, next.id),
+                    format!(
+                        "clips overlap by {overlap} frames but transition declares only {}",
+                        next.transition_in.duration_frames
+                    ),
+                ));
+            }
+        } else if next.edit_range.start > previous.edit_range.end {
+            report.push(Diagnostic::warning(
+                "EDIT_TIMELINE_GAP",
+                format!("{scene_path}.edit_timeline[{}->{}]", previous.id, next.id),
+                format!(
+                    "{} frame(s) are uncovered on the edit timeline",
+                    next.edit_range.start - previous.edit_range.end
                 ),
             ));
         }
@@ -895,6 +1109,8 @@ fn validate_camera_operation(
             target,
             occluder,
             lateral_distance_m,
+            visibility,
+            preserve,
         } => {
             validate_target_ref(target, subjects, markers, &format!("{path}.target"), report);
             validate_target_ref(
@@ -909,6 +1125,29 @@ fn validate_camera_operation(
                 &format!("{path}.lateral_distance_m"),
                 report,
             );
+            if let Some(visibility) = visibility {
+                if !normalized(visibility.from)
+                    || !normalized(visibility.to)
+                    || visibility.to < visibility.from
+                {
+                    report.push(Diagnostic::error(
+                        "CAMERA_REVEAL_VISIBILITY_INVALID",
+                        format!("{path}.visibility"),
+                        "reveal visibility must stay in [0, 1] and end at or above its start",
+                    ));
+                }
+            }
+            if preserve
+                .as_ref()
+                .and_then(|spec| spec.target_screen_y)
+                .is_some_and(|value| !normalized(value))
+            {
+                report.push(Diagnostic::error(
+                    "CAMERA_REVEAL_PRESERVE_INVALID",
+                    format!("{path}.preserve.target_screen_y"),
+                    "target_screen_y must be in [0, 1]",
+                ));
+            }
         }
     }
 }

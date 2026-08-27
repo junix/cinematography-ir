@@ -140,6 +140,7 @@ impl Grid {
     }
 
     fn text(&mut self, at: Vec2, content: &str, anchor: Anchor) {
+        let content = ascii_safe(content);
         let (c, r) = self.cell(at);
         let len = content.chars().count() as i64;
         let start = match anchor {
@@ -148,14 +149,6 @@ impl Grid {
             Anchor::End => c - len + 1,
         };
         for (i, ch) in content.chars().enumerate() {
-            let ch = match ch {
-                c if c.is_ascii() => c,
-                '·' | '–' | '—' | '−' => '-',
-                '→' => '>',
-                '←' => '<',
-                '°' => 'o',
-                _ => '?',
-            };
             self.put(start + i as i64, r, ch);
         }
     }
@@ -231,11 +224,26 @@ fn initial(label: &Option<String>, fallback: char) -> char {
 pub fn canvas_to_ascii(canvas: &Canvas, columns: usize) -> String {
     let mut grid = Grid::new(canvas, columns);
     for pass in [Pass::Lines, Pass::Symbols, Pass::Labels] {
-        for item in &canvas.items {
+        for item in canvas.ordered_items() {
             draw(&mut grid, item, canvas, pass);
         }
     }
     grid.render()
+}
+
+fn ascii_safe(content: &str) -> String {
+    let mut output = String::new();
+    for character in content.chars() {
+        match character {
+            value if value.is_ascii() => output.push(value),
+            '·' | '–' | '—' | '−' => output.push('-'),
+            '→' => output.push('>'),
+            '←' => output.push('<'),
+            '°' => output.push('o'),
+            value => output.push_str(&format!("u{:04X}", value as u32)),
+        }
+    }
+    output
 }
 
 fn draw(grid: &mut Grid, item: &CanvasItem, canvas: &Canvas, pass: Pass) {
@@ -425,6 +433,63 @@ fn draw(grid: &mut Grid, item: &CanvasItem, canvas: &Canvas, pass: Pass) {
         CanvasItem::Diagnostic { at, code, .. } => {
             if pass == Pass::Labels {
                 grid.text(*at, &format!("! {code}"), Anchor::Start);
+            }
+        }
+        CanvasItem::Group { items, .. } => {
+            let mut ordered: Vec<_> = items.iter().enumerate().collect();
+            ordered.sort_by_key(|(index, item)| (item.z_index(), *index));
+            for (_, item) in ordered {
+                draw(grid, item, canvas, pass);
+            }
+        }
+        CanvasItem::CubicPath {
+            from,
+            control1,
+            control2,
+            to,
+            arrow_head,
+            ..
+        } => {
+            if pass != Pass::Lines {
+                return;
+            }
+            let points: Vec<_> = (0..=16)
+                .map(|index| {
+                    let t = index as f32 / 16.0;
+                    let u = 1.0 - t;
+                    Vec2::new(
+                        u.powi(3) * from.x
+                            + 3.0 * u.powi(2) * t * control1.x
+                            + 3.0 * u * t.powi(2) * control2.x
+                            + t.powi(3) * to.x,
+                        u.powi(3) * from.y
+                            + 3.0 * u.powi(2) * t * control1.y
+                            + 3.0 * u * t.powi(2) * control2.y
+                            + t.powi(3) * to.y,
+                    )
+                })
+                .collect();
+            for pair in points.windows(2) {
+                grid.line(pair[0], pair[1], None, LineStyle::Solid);
+            }
+            if *arrow_head {
+                grid.arrow_head(*control2, *to);
+            }
+        }
+        CanvasItem::VectorField { vectors, .. } => {
+            if pass == Pass::Lines {
+                for (from, to) in vectors {
+                    grid.line(*from, *to, None, LineStyle::Solid);
+                    grid.arrow_head(*from, *to);
+                }
+            }
+        }
+        CanvasItem::EmbeddedImage { rect, .. } => {
+            if pass == Pass::Lines {
+                grid.rect(*rect, LineStyle::Dotted);
+            } else if pass == Pass::Symbols {
+                let (column, row) = grid.cell(rect.center());
+                grid.put(column, row, 'I');
             }
         }
     }

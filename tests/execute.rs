@@ -5,8 +5,8 @@ use cinematography_ir::execute::blender::{
     build_payload, render_script, BlenderAdapter, BlenderOptions,
 };
 use cinematography_ir::{
-    load_project, solve_project, CinematographyAdapter, ConditioningPass, FrameRange, SolveOptions,
-    SolvedProject,
+    compile_project, load_project, solve_project, CinematographyAdapter, CompileOptions,
+    ConditioningPass, ExecutionProfile, ExecutionRequest, FrameRange, SolveOptions, SolvedProject,
 };
 
 fn example(name: &str) -> PathBuf {
@@ -132,9 +132,11 @@ fn script_is_deterministic_and_embeds_the_payload() {
     assert!(a.contains("NodeGroupOutput"));
     assert!(a.contains("node.file_output_items.new"));
     assert!(a.contains("ShaderNodeMapRange"));
+    assert!(a.contains("ShaderNodeMath"));
     assert!(!a.contains("node.base_path"));
     assert!(!a.contains("node.file_slots"));
     assert!(!a.contains("CompositorNodeMapRange"));
+    assert!(!a.contains("CompositorNodeMath"));
     assert!(!a.contains("tree = scene.node_tree"));
     assert!(!a.contains(".use_nodes = True"));
     assert!(!a.contains("__PAYLOAD_JSON__"));
@@ -212,6 +214,73 @@ fn script_only_writes_build_script_and_manifest() {
     }
 }
 
+#[test]
+fn compiled_execution_publishes_typed_scene_and_shot_bundles() {
+    let project = load_project(example("jaws_beach_dolly_zoom.yaml")).unwrap();
+    let compiled = compile_project(&project, &CompileOptions::default()).unwrap();
+    let scene = &compiled.compiled.scenes[0];
+    let out = scratch("compiled-shot-bundle");
+    let profile = ExecutionProfile::generic_control();
+    let mut adapter = BlenderAdapter::new(BlenderOptions {
+        script_only: true,
+        ..BlenderOptions::default()
+    });
+    adapter
+        .stage_scene(&compiled.compiled, scene, &profile)
+        .unwrap();
+    let bundle = adapter
+        .execute(
+            &ExecutionRequest {
+                scene_id: scene.id.clone(),
+                shot_ids: Vec::new(),
+                frame_range: None,
+                profile,
+            },
+            &out,
+        )
+        .unwrap();
+    assert!(!bundle.executed);
+    assert!(bundle.complete_path.is_file());
+    assert!(bundle.root.join("edit.json").is_file());
+    let shot = bundle.root.join("shots/beach_dolly_zoom");
+    for relative in [
+        "guidance.json",
+        "prompt.txt",
+        "negative_prompt.txt",
+        "review/motion_grammar.svg",
+        "review/elevation.svg",
+        "metadata/camera.json",
+        "metadata/screen_tracks.json",
+        "metadata/constraints.json",
+        "metadata/validation.json",
+        "manifest.json",
+    ] {
+        assert!(shot.join(relative).is_file(), "missing {relative}");
+    }
+    let guidance: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(shot.join("guidance.json")).unwrap())
+            .unwrap();
+    assert_eq!(guidance["phases"].as_array().unwrap().len(), 3);
+    assert!(guidance["screen_tracks"].as_array().unwrap().len() >= 3);
+    assert!(guidance["constraints"].as_array().unwrap().len() >= 10);
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&bundle.manifest_path).unwrap()).unwrap();
+    assert_eq!(manifest["status"], "complete");
+    assert!(manifest["pass_specs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|spec| {
+            spec["kind"] == "metric_depth" && spec["file_pattern"] == "depth_metric/####.exr"
+        }));
+    let script = bundle.root.join("build.py");
+    py_compile(&script);
+    if let Some(summary) = run_with_stub(&script) {
+        assert_eq!(summary["cameras_new"], 1, "{summary}");
+        assert_eq!(summary["render_calls"], 1, "{summary}");
+    }
+}
+
 /// Runs the script under `tests/python/bpy_stub`; `None` when python3 is absent.
 fn run_with_stub(script: &Path) -> Option<serde_json::Value> {
     let runner = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -234,7 +303,7 @@ fn run_with_stub(script: &Path) -> Option<serde_json::Value> {
 }
 
 #[test]
-fn missing_blender_reports_the_written_scripts() {
+fn missing_blender_preserves_diagnostics_without_publishing_a_manifest() {
     let solved = solved("dolly_zoom.yaml");
     let out = scratch("blender-missing");
     let mut adapter = BlenderAdapter::new(BlenderOptions {
@@ -248,9 +317,21 @@ fn missing_blender_reports_the_written_scripts() {
     let message = error.to_string();
     assert!(message.contains("failed to launch"), "{message}");
     assert!(
-        out.join("realization/build.py").is_file(),
-        "script must exist even when launch fails"
+        !out.join("realization").exists(),
+        "failed transactions must not look like valid scene bundles"
     );
+    let failed = std::fs::read_dir(&out)
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with(".realization.failed-"))
+        })
+        .expect("failed transaction is retained for diagnostics");
+    assert!(failed.join("build.py").is_file());
+    assert!(!failed.join("manifest.json").exists());
 }
 
 #[test]
@@ -301,6 +382,31 @@ fn pass_names_round_trip() {
         ConditioningPass::parse_list("depth, depth ,seg").unwrap(),
         vec![ConditioningPass::Depth, ConditioningPass::ObjectIndex]
     );
+}
+
+#[test]
+fn checked_in_execution_profiles_are_strict_and_adapter_compatible() {
+    for name in [
+        "generic-dense.json",
+        "image-to-video.json",
+        "camera-api.json",
+    ] {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("profiles/execution")
+            .join(name);
+        let profile: ExecutionProfile =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(!profile.passes.is_empty(), "{name}");
+        let adapter = BlenderAdapter::default();
+        let capabilities = adapter.capabilities();
+        assert!(
+            profile
+                .passes
+                .iter()
+                .all(|pass| capabilities.supported_passes.contains(&pass.kind)),
+            "{name} requests an unsupported pass"
+        );
+    }
 }
 
 #[test]
