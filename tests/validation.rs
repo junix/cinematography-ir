@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-use cinematography_ir::{load_project, validate_project, CineProject, Severity};
+use cinematography_ir::{
+    analyze_continuity, load_project, validate_project, CineProject, Severity,
+};
 
 fn example(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -158,4 +160,44 @@ scenes: []
         .diagnostics
         .iter()
         .any(|d| d.code == "COORDINATE_SYSTEM_AXES_PARALLEL"));
+}
+
+#[test]
+fn a_previous_jump_cut_does_not_exempt_the_following_cut() {
+    let source = r#"
+schema_version: "0.1"
+id: cuts
+title: Cuts
+frame_rate: { numerator: 24 }
+scenes:
+  - id: scene
+    title: Scene
+    duration_frames: 72
+    subjects:
+      - { id: hero, name: Hero, kind: character }
+    shots:
+      - id: first
+        range: { start: 0, end: 24 }
+        framing: { shot_size: medium, subject_ids: [hero] }
+        camera: { initial_state: { transform: {} } }
+        continuity: { camera_azimuth_deg: 0 }
+      - id: previous
+        range: { start: 24, end: 48 }
+        framing: { shot_size: medium, subject_ids: [hero] }
+        camera: { initial_state: { transform: {} } }
+        transition_in: jump_cut
+        continuity: { camera_azimuth_deg: 5 }
+      - id: next
+        range: { start: 48, end: 72 }
+        framing: { shot_size: medium, subject_ids: [hero] }
+        camera: { initial_state: { transform: {} } }
+        transition_in: cut
+        continuity: { camera_azimuth_deg: 10 }
+"#;
+    let project: CineProject = serde_yaml::from_str(source).unwrap();
+    let report = analyze_continuity(&project.scenes[0]);
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "CONTINUITY_SMALL_ANGLE_CUT"
+            && diagnostic.path.contains("previous->next")
+    }));
 }

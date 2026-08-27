@@ -65,7 +65,8 @@ pub fn sample_points(
                 let mut frames = vec![shot.range.start];
                 for timed in &shot.camera.operations {
                     frames.push(shot.range.start + timed.range.start);
-                    frames.push((shot.range.start + timed.range.end).min(shot.range.end - 1));
+                    let last_active = shot.range.start + timed.range.end.saturating_sub(1);
+                    frames.push(last_active.min(shot.range.end.saturating_sub(1)));
                 }
                 frames.sort_unstable();
                 frames.dedup();

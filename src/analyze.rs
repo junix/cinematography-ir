@@ -110,7 +110,7 @@ fn analyze_thirty_degree_rule(
     next: &Shot,
     report: &mut ValidationReport,
 ) {
-    if previous.transition_in == Transition::JumpCut || next.transition_in == Transition::JumpCut {
+    if next.transition_in == Transition::JumpCut {
         return;
     }
 

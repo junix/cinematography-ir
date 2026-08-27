@@ -42,7 +42,8 @@ scenes:
             transform:
               position: { x: 0.0, y: 1.55, z: 4.5 }
             lens:
-              focal_length_mm: 50.0
+              # Solved from the 0.42 projected subject-height constraint at 16:9.
+              focal_length_mm: 21.0195
               aperture_f: 4.0
             focus:
               target: { type: subject, id: hero }

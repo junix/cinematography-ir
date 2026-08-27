@@ -784,6 +784,7 @@ fn validate_camera_operation(
         CameraOperation::Follow {
             target,
             offset,
+            lag_half_life_s,
             damping,
         } => {
             validate_target_ref(target, subjects, markers, &format!("{path}.target"), report);
@@ -794,6 +795,16 @@ fn validate_camera_operation(
                     format!("{path}.damping"),
                     "follow damping must be in [0, 1]",
                 ));
+            }
+            if lag_half_life_s.is_some_and(|value| !positive_finite(value)) {
+                report.push(
+                    Diagnostic::error(
+                        "CAMERA_FOLLOW_HALF_LIFE_INVALID",
+                        format!("{path}.lag_half_life_s"),
+                        "follow lag_half_life_s must be finite and greater than zero",
+                    )
+                    .with_hint("Use a time-domain half-life such as 0.18 seconds."),
+                );
             }
         }
         CameraOperation::Crane { delta, look_at } => {

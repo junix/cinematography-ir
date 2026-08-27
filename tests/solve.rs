@@ -2,8 +2,10 @@ use std::path::PathBuf;
 
 use cinematography_ir::math::Vec3;
 use cinematography_ir::solve::SolvedCameraFrame;
+use cinematography_ir::view::project::FrameProjection;
 use cinematography_ir::{
-    load_project, solve_project, CineProject, Fidelity, SolveError, SolveOptions, SolvedProject,
+    load_project, normalize_units, solve_project, CameraOperation, CineProject, Fidelity,
+    SolveError, SolveOptions, SolvedProject, TargetRef,
 };
 
 fn example(name: &str) -> PathBuf {
@@ -30,6 +32,44 @@ fn solve(name: &str) -> SolvedProject {
 
 fn distance(a: Vec3, b: Vec3) -> f32 {
     (a - b).length()
+}
+
+fn subject_height_fraction(
+    solved: &SolvedProject,
+    scene_index: usize,
+    shot_index: usize,
+    subject_id: &str,
+    frame: u64,
+) -> f32 {
+    let scene = &solved.scenes[scene_index];
+    let shot = &scene.shots[shot_index];
+    let camera = shot.frame_at(frame).unwrap();
+    let subject = scene.subject(subject_id).unwrap();
+    let transform = subject.transform_at(frame);
+    let projection = FrameProjection {
+        position: camera.position,
+        basis: cinematography_ir::math::Basis {
+            right: camera.right,
+            up: camera.up,
+            forward: camera.forward,
+        },
+        focal_length_mm: camera.focal_length_mm,
+        sensor_width_mm: shot.sensor_width_mm,
+        aspect: 16.0 / 9.0,
+        width: 1600.0,
+        height: 900.0,
+    };
+    let basis =
+        cinematography_ir::math::oriented_basis(&solved.coordinate_system, transform.rotation_deg);
+    let (bounds, _) = projection
+        .project_box(
+            transform.position,
+            subject.dimensions_m,
+            &basis,
+            transform.scale,
+        )
+        .unwrap();
+    (bounds.max.y - bounds.min.y) / projection.height
 }
 
 #[test]
@@ -137,16 +177,15 @@ fn dolly_zoom_keeps_subject_size_constant() {
         "dolly-in requires zoom-out"
     );
 
-    let ratio0 = first.focal_length_mm / d0;
     let mut previous_distance = d0;
-    for frame in &shot.frames {
+    for frame in &shot.frames[24..112] {
         let d = distance(frame.position, aim);
         assert!(d <= previous_distance + 1e-4, "distance must not increase");
         previous_distance = d;
-        let ratio = frame.focal_length_mm / d;
         assert!(
-            ((ratio - ratio0) / ratio0).abs() < 1e-3,
-            "focal/distance must stay constant: {ratio} vs {ratio0}"
+            (subject_height_fraction(&solved, 0, 0, "hero", frame.frame) - 0.42).abs() < 1e-4,
+            "requested screen fraction must be solved at frame {}",
+            frame.frame
         );
         assert!(
             frame.forward.dot(aim - frame.position) > 0.0,
@@ -173,18 +212,15 @@ fn jaws_study_keeps_the_observer_stable_while_the_background_expands() {
     let background_aim =
         background.transforms[48].position + Vec3::new(0.0, background.dimensions_m.y * 0.9, 0.0);
 
-    let subject_scale =
-        |frame: &SolvedCameraFrame| frame.focal_length_mm / distance(frame.position, observer_aim);
     let background_offset = |frame: &SolvedCameraFrame| {
         let delta = background_aim - frame.position;
         frame.focal_length_mm * delta.dot(frame.right).abs() / delta.dot(frame.forward)
     };
 
-    let scale_delta =
-        ((subject_scale(after) - subject_scale(before)) / subject_scale(before)).abs();
     assert!(
-        scale_delta < 1e-3,
-        "observer scale drifted by {scale_delta}"
+        (subject_height_fraction(&solved, 0, 0, "observer", 48) - 0.42).abs() < 1e-4
+            && (subject_height_fraction(&solved, 0, 0, "observer", 167) - 0.42).abs() < 1e-4,
+        "observer projected bounds must remain locked"
     );
     assert!(
         after.focal_length_mm > before.focal_length_mm,
@@ -200,6 +236,98 @@ fn jaws_study_keeps_the_observer_stable_while_the_background_expands() {
         background_offset(before),
         background_offset(after)
     );
+}
+
+#[test]
+fn every_crane_point_target_is_normalized() {
+    let source = r#"
+schema_version: "0.1"
+id: cranes
+title: Cranes
+frame_rate: { numerator: 24 }
+coordinate_system: { units: centimeters }
+scenes:
+  - id: scene
+    title: Scene
+    duration_frames: 24
+    shots:
+      - id: shot
+        range: { start: 0, end: 24 }
+        framing: { shot_size: medium }
+        camera:
+          initial_state: { transform: {} }
+          operations:
+            - range: { start: 0, end: 12 }
+              operation: { op: crane, delta: { x: 0, y: 100, z: 0 }, look_at: { type: point, position: { x: 100, y: 200, z: 300 } } }
+            - range: { start: 12, end: 24 }
+              operation: { op: crane, delta: { x: 0, y: 100, z: 0 }, look_at: { type: point, position: { x: 400, y: 500, z: 600 } } }
+"#;
+    let project: CineProject = serde_yaml::from_str(source).unwrap();
+    let normalized = normalize_units(&project);
+    let operations = &normalized.scenes[0].shots[0].camera.operations;
+    let points: Vec<Vec3> = operations
+        .iter()
+        .filter_map(|timed| match &timed.operation {
+            CameraOperation::Crane {
+                look_at: Some(TargetRef::Point { position }),
+                ..
+            } => Some(*position),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        points,
+        vec![Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 5.0, 6.0)]
+    );
+}
+
+#[test]
+fn follow_half_life_is_frame_rate_independent() {
+    fn sample(fps: u32) -> f32 {
+        let duration = fps * 2;
+        let source = format!(
+            r#"
+schema_version: "0.1"
+id: follow
+title: Follow
+frame_rate: {{ numerator: {fps} }}
+scenes:
+  - id: scene
+    title: Scene
+    duration_frames: {duration}
+    subjects:
+      - {{ id: hero, name: Hero, kind: character }}
+    blocking:
+      - subject_id: hero
+        keyframes:
+          - {{ frame: 0, transform: {{ position: {{ x: 0, y: 0, z: 0 }} }} }}
+          - {{ frame: {duration}, transform: {{ position: {{ x: 2, y: 0, z: 0 }} }} }}
+    shots:
+      - id: shot
+        range: {{ start: 0, end: {duration} }}
+        framing: {{ shot_size: medium, subject_ids: [hero] }}
+        camera:
+          initial_state: {{ transform: {{ position: {{ x: 0, y: 1.5, z: 4 }} }} }}
+          operations:
+            - range: {{ start: 0, end: {duration} }}
+              operation:
+                op: follow
+                target: {{ type: subject, id: hero }}
+                offset: {{ x: 0, y: 1.5, z: 4 }}
+                lag_half_life_s: 0.18
+"#
+        );
+        let project: CineProject = serde_yaml::from_str(&source).unwrap();
+        let solved = solve_project(&project, &SolveOptions::default())
+            .unwrap()
+            .solved;
+        solved.scenes[0].shots[0]
+            .frame_at(fps as u64)
+            .unwrap()
+            .position
+            .x
+    }
+    assert!((sample(24) - sample(60)).abs() < 0.02);
 }
 
 #[test]

@@ -18,13 +18,15 @@
 //!   the range ends the channel is released, so later operations accumulate
 //!   on top of the held end state. When two of them drive the same channel
 //!   simultaneously, the later one in document order wins.
-//! * `follow` re-targets the position every active frame:
-//!   `p += (target + offset − p) · (1 − damping)`; `offset` is world space.
+//! * `follow` re-targets the position with a time-domain half-life, so the
+//!   response is independent of frame rate. Legacy `damping` values are
+//!   interpreted as the equivalent response at 24 fps.
 //! * `handheld_noise` is a deterministic overlay added to the output frame
 //!   without feeding back into the base state, so it never drifts.
-//! * `rotate` treats both spaces as Euler-additive; `dolly_zoom` keeps the
-//!   subject's apparent size constant (`focal ∝ distance`) and does not yet
-//!   solve `keep_subject_frame_fraction`; `reveal` ignores occluder geometry.
+//! * `rotate` treats both spaces as Euler-additive; `dolly_zoom` solves the
+//!   requested projected subject height when the target is a subject;
+//!   `reveal` currently uses its compiled visibility constraints for
+//!   validation while draft motion remains lateral.
 //!   These are draft simplifications, not IR semantics.
 
 use crate::math::{
@@ -40,6 +42,9 @@ use crate::solve::easing::ease;
 use crate::solve::solved::{
     SolvedCameraFrame, SolvedCue, SolvedScene, SolvedShot, SolvedSubjectTrack,
 };
+
+const DEFAULT_FRAME_ASPECT: f32 = 16.0 / 9.0;
+const LEGACY_FOLLOW_FPS: f32 = 24.0;
 
 /// Default bounding size per subject kind when `dimensions_m` is absent
 /// (width, height, depth in metres).
@@ -215,6 +220,7 @@ struct CamState {
     focal_length_mm: f32,
     focus_distance_m: Option<f32>,
     focus_target: Option<TargetRef>,
+    sensor_width_mm: f32,
 }
 
 /// Values captured when a target operation starts.
@@ -268,6 +274,7 @@ pub fn sample_shot(ctx: &SceneContext<'_>, shot: &Shot) -> SolvedShot {
         focal_length_mm: initial.lens.focal_length_mm,
         focus_distance_m: initial.focus.distance_m,
         focus_target: initial.focus.target.clone(),
+        sensor_width_mm: initial.lens.sensor_width_mm,
     };
     let sensor_width_mm = initial.lens.sensor_width_mm;
     let aperture_f = initial.lens.aperture_f;
@@ -480,6 +487,7 @@ fn apply_operation(
         CameraOperation::Follow {
             target,
             offset,
+            lag_half_life_s,
             damping,
         } => {
             if !active {
@@ -489,7 +497,18 @@ fn apply_operation(
                 return;
             };
             let desired = center + *offset;
-            let gain = (1.0 - damping).clamp(0.0, 1.0);
+            let half_life = lag_half_life_s.unwrap_or_else(|| {
+                let retained = damping.clamp(f32::EPSILON, 1.0 - f32::EPSILON);
+                -std::f32::consts::LN_2 / (LEGACY_FOLLOW_FPS * retained.ln())
+            });
+            let dt = 1.0 / ctx.fps.max(1.0) as f32;
+            let gain = if *damping <= 0.0 && lag_half_life_s.is_none() {
+                1.0
+            } else if *damping >= 1.0 && lag_half_life_s.is_none() {
+                0.0
+            } else {
+                1.0 - 2.0_f32.powf(-dt / half_life.max(f32::EPSILON))
+            };
             state.position = state.position.lerp(desired, gain);
             aim_blend(state, cs, Some(center), snapshot, 1.0);
         }
@@ -525,7 +544,7 @@ fn apply_operation(
         CameraOperation::DollyZoom {
             target,
             to_distance_m,
-            ..
+            keep_subject_frame_fraction,
         } => {
             if !active {
                 return;
@@ -537,10 +556,17 @@ fn apply_operation(
             };
             let distance = lerp(d0, *to_distance_m, u);
             state.position = center + direction * distance;
-            state.focal_length_mm = snapshot.focal_length_mm * distance / d0;
+            aim_track(state, cs, center, snapshot, u);
+            state.focal_length_mm = focal_for_subject_fraction(
+                ctx,
+                state,
+                target,
+                scene_frame,
+                *keep_subject_frame_fraction,
+            )
+            .unwrap_or(snapshot.focal_length_mm * distance / d0);
             state.focus_distance_m = Some(distance);
             state.focus_target = Some(target.clone());
-            aim_track(state, cs, center, snapshot, u);
         }
         CameraOperation::HandheldNoise {
             translation_amplitude_m,
@@ -580,6 +606,51 @@ fn apply_operation(
             }
         }
     }
+}
+
+fn focal_for_subject_fraction(
+    ctx: &SceneContext<'_>,
+    state: &CamState,
+    target: &TargetRef,
+    frame: Frame,
+    requested_fraction: f32,
+) -> Option<f32> {
+    let TargetRef::Subject { id } = target else {
+        return None;
+    };
+    let track = ctx.subjects.iter().find(|track| &track.subject_id == id)?;
+    let transform = track.transform_at(frame);
+    let subject = oriented_basis(ctx.cs, transform.rotation_deg);
+    let camera = oriented_basis(ctx.cs, state.rotation);
+    let half_w = track.dimensions_m.x * transform.scale.x / 2.0;
+    let half_d = track.dimensions_m.z * transform.scale.z / 2.0;
+    let height = track.dimensions_m.y * transform.scale.y;
+    let mut min_slope = f32::INFINITY;
+    let mut max_slope = f32::NEG_INFINITY;
+    for sx in [-1.0, 1.0] {
+        for sz in [-1.0, 1.0] {
+            for sy in [0.0, 1.0] {
+                let corner = transform.position
+                    + subject.right * (sx * half_w)
+                    + subject.forward * (sz * half_d)
+                    + subject.up * (sy * height);
+                let delta = corner - state.position;
+                let depth = delta.dot(camera.forward);
+                if depth <= 0.05 {
+                    continue;
+                }
+                let slope = delta.dot(camera.up) / depth;
+                min_slope = min_slope.min(slope);
+                max_slope = max_slope.max(slope);
+            }
+        }
+    }
+    let span = max_slope - min_slope;
+    if !span.is_finite() || span <= 1e-6 {
+        return None;
+    }
+    let sensor_height_mm = state.sensor_width_mm / DEFAULT_FRAME_ASPECT;
+    Some((requested_fraction * sensor_height_mm / span).max(1.0))
 }
 
 /// Look at `center` every frame, keeping the snapshot's initial misalignment

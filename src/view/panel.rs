@@ -573,12 +573,11 @@ pub fn frame_panel(
 
     if overlays.arrows {
         let local = frame.saturating_sub(shot.range.start);
-        let at_shot_start = frame == shot.range.start;
         let ops: Vec<&TimedCameraOperation> = shot
             .camera
             .operations
             .iter()
-            .filter(|t| at_shot_start || (local >= t.range.start && local < t.range.end))
+            .filter(|t| local >= t.range.start && local < t.range.end)
             .collect();
         for cue in motion_cues(&ops, &projection, ctx, solved_shot, camera, frame) {
             canvas.push(cue);
@@ -755,23 +754,34 @@ fn motion_cues(
                 to_distance_m,
                 ..
             } => {
-                // Closing iff the target distance is below the distance at the
-                // operation's start — the same rule the solver applies.
                 let start_frame = solved_shot.range.start + timed.range.start;
-                let closing = match (
-                    solved_shot.frame_at(start_frame),
-                    ctx.aim_position(target, start_frame),
-                ) {
-                    (Some(start), Some(aim)) => *to_distance_m < (start.position - aim).length(),
-                    _ => true,
-                };
-                cues.extend(inward(!closing));
-                // The background expands (closing) or contracts (opening):
-                // symmetric edge arrows, so no arbitrary left/right reading.
+                let end_frame = (solved_shot.range.start + timed.range.end.saturating_sub(1))
+                    .min(solved_shot.range.end.saturating_sub(1));
+                let start_distance = solved_shot
+                    .frame_at(start_frame)
+                    .zip(ctx.aim_position(target, start_frame))
+                    .map(|(start, aim)| (start.position - aim).length());
+                let camera_moves_away = start_distance.is_some_and(|d| *to_distance_m > d);
+                cues.extend(inward(camera_moves_away));
+
+                // Image motion is derived from projected solved states.  When
+                // no background proxy is available, distance is the physical
+                // fallback for the coupled dolly/zoom mechanism.
+                let background_expands =
+                    projected_background_spread(ctx, solved_shot, target, start_frame, w, h)
+                        .zip(projected_background_spread(
+                            ctx,
+                            solved_shot,
+                            target,
+                            end_frame,
+                            w,
+                            h,
+                        ))
+                        .map_or(camera_moves_away, |(start, end)| end > start);
                 let y = h - m;
                 let (left_a, left_b) = (Vec2::new(w * 0.3, y), Vec2::new(w * 0.3 - len / 2.0, y));
                 let (right_a, right_b) = (Vec2::new(w * 0.7, y), Vec2::new(w * 0.7 + len / 2.0, y));
-                if closing {
+                if background_expands {
                     cues.push(arrow(left_a, left_b));
                     cues.push(arrow(right_a, right_b));
                 } else {
@@ -885,6 +895,52 @@ fn motion_cues(
         }
     }
     cues
+}
+
+fn projected_background_spread(
+    ctx: &PanelContext<'_>,
+    shot: &SolvedShot,
+    target: &TargetRef,
+    frame: Frame,
+    width: f32,
+    height: f32,
+) -> Option<f32> {
+    let camera = shot.frame_at(frame)?;
+    let projection = FrameProjection {
+        position: camera.position,
+        basis: crate::math::Basis {
+            right: camera.right,
+            up: camera.up,
+            forward: camera.forward,
+        },
+        focal_length_mm: camera.focal_length_mm,
+        sensor_width_mm: shot.sensor_width_mm,
+        aspect: width / height,
+        width,
+        height,
+    };
+    let target_screen = projection.project(ctx.aim_position(target, frame)?)?.0;
+    let target_id = match target {
+        TargetRef::Subject { id } => Some(id.as_str()),
+        _ => None,
+    };
+    let offsets: Vec<f32> = ctx
+        .solved
+        .subjects
+        .iter()
+        .filter(|track| Some(track.subject_id.as_str()) != target_id)
+        .filter_map(|track| {
+            projection
+                .project(ctx.aim_position(
+                    &TargetRef::Subject {
+                        id: track.subject_id.clone(),
+                    },
+                    frame,
+                )?)
+                .map(|(point, _)| point.sub(target_screen).length())
+        })
+        .collect();
+    (!offsets.is_empty()).then(|| offsets.iter().sum::<f32>() / offsets.len() as f32)
 }
 
 fn shot_start_position(ctx: &PanelContext<'_>, target: &TargetRef, frame: Frame) -> Option<Vec3> {

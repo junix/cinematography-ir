@@ -595,6 +595,11 @@ pub enum CameraOperation {
     Follow {
         target: TargetRef,
         offset: Vec3,
+        /// Time-domain lag. When present this is independent of frame rate.
+        #[serde(default)]
+        lag_half_life_s: Option<f32>,
+        /// Backward-compatible 24 fps response coefficient. New documents
+        /// should use `lag_half_life_s`.
         #[serde(default = "default_damping")]
         damping: f32,
     },

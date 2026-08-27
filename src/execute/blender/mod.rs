@@ -206,6 +206,21 @@ impl CinematographyAdapter for BlenderAdapter {
         if scene.duration_frames == 0 {
             bail!("scene '{}' has no frames", scene.id);
         }
+        if self.options.use_dof {
+            for shot in &scene.shots {
+                if let Some(frame) = shot
+                    .frames
+                    .iter()
+                    .find(|frame| frame.focus_distance_m.is_none())
+                {
+                    bail!(
+                        "cannot enable DOF: shot '{}' frame {} has no focus target or distance",
+                        shot.id,
+                        frame.frame
+                    );
+                }
+            }
+        }
         self.payloads.push(build_payload(project, scene));
         Ok(())
     }

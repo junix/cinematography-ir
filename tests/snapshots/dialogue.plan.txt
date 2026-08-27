@@ -19,14 +19,14 @@ master_two_shot - f0---------------++----------------------------------+
 +----------------------------------+
 alice_close_up - f80
 +----------------------------------++----------------------------------+
-|   Alice-Bob relationship axis    || |---                    .    ---||
-|        A=:>:=:=x=Room center     ||     ->    Alice       .   <--    |
+|   Alice-Bob relationship axis    || |                       .       ||
+|        A=:>:=:=x=Room center     ||           Alice       .          |
 |                                  || | . . . . . O . . . . . . . . . ||
 |      Alice            Bob        || |     aaaaaaaaaaaaa   . .       ||
 |             .Table               ||       aaaaaaaaaaaaa              |
 |         .   .                    || | . . aaaaaaaaaaaaa . . . . . . ||
-|          .  .                    || |   ->aaaaaaaaaaaaa     . <--   ||
-|           ...                    ||  ---  aaaaaaaaaaaaa   .      --- |
+|          .  .                    || |     aaaaaaaaaaaaa     .       ||
+|           ...                    ||       aaaaaaaaaaaaa   .          |
 |             C                    ||CU 65mm f/2.8  alice ->- .- -- --+|
 |               alice_close_up - CU 65mm----aaaaaaaaaaaaa--------------+
 |                                  |

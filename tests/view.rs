@@ -159,17 +159,19 @@ fn conditioning_intent_carries_no_text_and_only_motion_overlays() {
             "composed conditioning cell has no title"
         );
     }
-    // ...but the motion overlays must survive the gate (ADR-1115 D8).
+    // Per-shot conditioning samples the shot start and therefore must not
+    // leak the later dolly operation into the first frame.
     let alice = &built.cells[1];
-    assert!(
+    assert_eq!(
         alice.frame.as_ref().unwrap().count(|i| matches!(
             i,
             CanvasItem::Polyline {
                 kind: ArrowKind::MotionCue,
                 ..
             }
-        )) >= 4,
-        "dolly-in draws four inward corner arrows"
+        )),
+        0,
+        "future dolly cue must not appear at shot start"
     );
     assert_eq!(
         alice.plan.as_ref().unwrap().count(|i| matches!(
@@ -529,7 +531,7 @@ fn sampling_modes_select_the_expected_frames() {
     assert_eq!(frames(Sampling::PerBeat), vec![0, 80, 160]);
     assert_eq!(
         frames(Sampling::OperationEndpoints),
-        vec![0, 80, 96, 152, 160]
+        vec![0, 80, 96, 151, 160]
     );
     assert_eq!(frames(Sampling::EveryNFrames(100)), vec![0, 100, 200]);
     assert_eq!(frames(Sampling::Continuous { fps: 12 }).len(), 120);
@@ -646,6 +648,15 @@ fn is_outward(arrows: &[(f32, f32, f32, f32)]) -> bool {
 
 #[test]
 fn motion_cues_follow_the_solver_not_the_sampled_frame() {
+    // Per-shot conditioning samples the shot start. An operation beginning
+    // later must not leak a future arrow into that frame.
+    let cues = motion_cues(
+        "            - range: { start: 12, end: 48 }\n              operation: { op: dolly, distance_m: 1.0 }",
+        0.0,
+        Sampling::PerShot,
+    );
+    assert!(cues[0].is_empty(), "future operation leaked: {:?}", cues[0]);
+
     // Camera-local translate along +x with a yaw of 90° is a truck right, not a dolly.
     let cues = motion_cues(
         "            - range: { start: 0, end: 48 }\n              operation: { op: translate, delta: { x: 1.0, y: 0.0, z: 0.0 } }",
@@ -692,6 +703,47 @@ fn motion_cues_follow_the_solver_not_the_sampled_frame() {
         .filter(|(_, _, _, dy)| dy.abs() > 1e-3)
         .collect();
     assert!(is_inward(&corners), "{:?}", cues[0]);
+
+    // Dolly-out/zoom-in makes background proxies spread away from the target.
+    let project = load_project(example("jaws_beach_dolly_zoom.yaml")).unwrap();
+    let solved = solve_project(&project, &SolveOptions::default()).unwrap();
+    let request = ViewRequest {
+        sampling: Sampling::OperationEndpoints,
+        panels: vec![PanelKind::Frame],
+        ..ViewRequest::conditioning()
+    };
+    let built = build_cells(
+        &project,
+        &project.scenes[0],
+        &solved.solved.scenes[0],
+        &[],
+        &request,
+    );
+    let start = built
+        .cells
+        .iter()
+        .find(|cell| cell.title.contains("f48"))
+        .unwrap();
+    let edge_arrows: Vec<_> = start
+        .frame
+        .as_ref()
+        .unwrap()
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            CanvasItem::Polyline {
+                kind: ArrowKind::MotionCue,
+                points,
+                ..
+            } if points[0].y > 180.0 && points[0].x > 80.0 && points[0].x < 320.0 => {
+                Some((points[0], points[points.len() - 1]))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(edge_arrows.len(), 2, "{edge_arrows:?}");
+    assert!(edge_arrows[0].1.x < edge_arrows[0].0.x);
+    assert!(edge_arrows[1].1.x > edge_arrows[1].0.x);
 
     // Look-at a centred hero (eye height == camera height) draws no arrow.
     let cues = motion_cues(

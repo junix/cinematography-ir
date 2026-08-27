@@ -303,6 +303,37 @@ fn pass_names_round_trip() {
     );
 }
 
+#[test]
+fn dof_requires_an_explicit_or_derived_focus_distance() {
+    let source = r#"
+schema_version: "0.1"
+id: no_focus
+title: No focus
+frame_rate: { numerator: 24 }
+scenes:
+  - id: scene
+    title: Scene
+    duration_frames: 1
+    shots:
+      - id: shot
+        range: { start: 0, end: 1 }
+        framing: { shot_size: medium }
+        camera: { initial_state: { transform: {} } }
+"#;
+    let project: cinematography_ir::CineProject = serde_yaml::from_str(source).unwrap();
+    let solved = solve_project(&project, &SolveOptions::default())
+        .unwrap()
+        .solved;
+    let mut adapter = BlenderAdapter::new(BlenderOptions {
+        use_dof: true,
+        ..BlenderOptions::default()
+    });
+    let error = adapter.apply_scene(&solved, &solved.scenes[0]).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("has no focus target or distance"));
+}
+
 /// Syntax-checks the generated script with the system Python (bpy is only
 /// imported, never executed, by `py_compile`). Skips when python3 is absent.
 fn py_compile(script: &Path) {

@@ -188,7 +188,9 @@ pub fn build_payload(project: &SolvedProject, scene: &SolvedScene) -> BlenderPay
                 .map(|frame| {
                     let location = to_blender(cs, frame.position);
                     let r = camera_rows(cs, frame.right, frame.up, frame.forward);
-                    let focus = frame.focus_distance_m.unwrap_or(10.0);
+                    // Zero is an inert placeholder when DOF is disabled.  The
+                    // adapter rejects missing focus before enabling DOF.
+                    let focus = frame.focus_distance_m.unwrap_or(0.0);
                     [
                         location.x,
                         location.y,

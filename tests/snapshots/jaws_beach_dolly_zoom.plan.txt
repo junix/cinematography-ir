@@ -1,16 +1,16 @@
 beach_dolly_zoom - f0--------------++----------------------------------+
 |                                  ||.+..-..-..-..-..-..-..-..-..-..-..|
-|                    >             || |<-       .           .      -->||
-|            ^       R             ||    ---                    ---    |
-|             Right beachgoer      Left beachgoer Observerht beachgoer||
-|      Left beachgoer              || |  lOll        -O-     rOrr     ||
-|                                  ||    llll   . ooooooooo .rrrr      |
-|                                  || | .llll . . ooooooooo .rrrr . . ||
-|                O                 || |  llll   . ooooooooo .rrrr--   ||
-|                v                 ||  <-llll-->  ooooooooo  <--   --> |
-|            Observer              |+MCU 45mm f/5.6oooooooo------------+
-|                C                 |
-|                | beach_dolly_zoom - MCU 45mm
+|                    >             || |         .           .         ||
+|            ^       R             ||                                  |
+|             Right beachgoer      || | . . . . . . . . . . . . . . . ||
+|      Left beachgoer              || |  Left beacObservereachgoer    ||
+|                                  ||           ll  ooooorrr.          |
+|                                  || | . . . . ll. ooooorrr. . . . . ||
+|                O                 || |         .   ooooo   .         ||
+|                v                 ||               ooooo              |
+|            Observer              |+MCU 22mm f/5.6--------------------+
+|                C.                |
+|                | beach_dolly_zoom - MCU 22mm
 |                |                 |
 |                >                 |
 |                                  |

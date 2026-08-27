@@ -107,8 +107,13 @@ pub fn normalize_units(project: &CineProject) -> Cow<'_, CineProject> {
             }
             for timed in &mut shot.camera.operations {
                 match &mut timed.operation {
-                    CameraOperation::Translate { delta, .. }
-                    | CameraOperation::Crane { delta, .. } => pos(delta),
+                    CameraOperation::Translate { delta, .. } => pos(delta),
+                    CameraOperation::Crane { delta, look_at } => {
+                        pos(delta);
+                        if let Some(look_at) = look_at {
+                            target(look_at);
+                        }
+                    }
                     CameraOperation::Follow {
                         target: t, offset, ..
                     } => {
@@ -129,19 +134,6 @@ pub fn normalize_units(project: &CineProject) -> Cow<'_, CineProject> {
                     }
                     _ => {}
                 }
-            }
-            if let Some(look_at) = shot.camera.operations.iter_mut().find_map(|timed| {
-                if let CameraOperation::Crane {
-                    look_at: Some(look_at),
-                    ..
-                } = &mut timed.operation
-                {
-                    Some(look_at)
-                } else {
-                    None
-                }
-            }) {
-                target(look_at);
             }
         }
     }
