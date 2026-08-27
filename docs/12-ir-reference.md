@@ -34,10 +34,12 @@ scenes: []
   blocking: ...
   beats: ...
   lighting_setups: ...
-  shots: ...
+  shots: ...          # 兼容的最终剪辑单轨
+  takes: ...          # 可重叠的拍摄覆盖
+  edit_timeline: ...  # source -> edit 映射
 ```
 
-`shots` 是单轨编辑时间线，因此默认不允许重叠。多机位素材与 split-screen 属于后续多轨扩展。
+`shots` 是兼容的单轨编辑时间线，因此不允许重叠。需要 master、single、reaction 同时覆盖一段表演时，使用可重叠 `takes`；`edit_timeline` 从 take 选择 source range。当前 edit timeline 是画面单轨，转场允许显式 overlap，音频多轨仍在范围外。
 
 ## 12.3 Subject 与 TargetRef
 
@@ -49,6 +51,12 @@ subjects:
     initial_transform:
       position: { x: -1.5, y: 0.0, z: 0.0 }
       rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
+    geometry_proxy: { kind: capsule_rig }
+    pose_track:
+      frames:
+        - frame: 0
+          joints: { head: { x: -1.5, y: 1.65, z: 0.0 } }
+          gaze: { type: subject, id: bob }
 ```
 
 引用形式：
@@ -90,9 +98,15 @@ axes:
       lead_room: 0.28
       negative_space: right
   camera: ...
+  phrases: [reaction_hold]
+  relations:
+    - { kind: reaction_to, shot_id: bob_close_up }
+  prohibit: [unplanned_cut]
 ```
 
 `headroom` 与 `lead_room` 是 `[0,1]` 规范化规划值；当前版本不规定唯一测量算法，backend 应说明其屏幕空间解释。
+
+`ShotPhrase` 位于物理 operation 和剪辑关系之间，包括 `pressure_push_in`、`subject_lock_dolly_zoom`、`foreground_parallax_reveal`、`visible_axis_cross`、`rack_focus_reveal`、`reaction_hold`、`walk_and_talk_follow` 与 `orbit_relationship_shift`。未显式填写时，compiler 会从运镜、purpose 与连续性桥接推导，但不会覆盖作者值。
 
 ## 12.6 CameraState
 
@@ -126,6 +140,28 @@ operations:
       distance_m: 0.35
 ```
 
+Follow 使用与帧率无关的时间常数：
+
+```yaml
+operation:
+  op: follow
+  target: { type: subject, id: runner }
+  offset: { x: 0.0, y: 1.5, z: -3.0 }
+  lag_half_life_s: 0.18
+```
+
+Reveal 可声明可观察的遮挡目标，solver 会根据 target/occluder 的投影包围盒求横移，而不是把它当作普通 truck：
+
+```yaml
+operation:
+  op: reveal
+  target: { type: subject, id: hero }
+  occluder: { type: subject, id: doorway }
+  lateral_distance_m: 1.0       # 无可见比例时的兼容 fallback
+  visibility: { from: 0.05, to: 0.85, monotonic: true }
+  preserve: { target_screen_y: 0.48 }
+```
+
 支持：
 
 ```text
@@ -142,7 +178,29 @@ reveal
 
 操作可以时间重叠，例如 `follow` 与 `handheld_noise` 同时存在。求解器必须定义组合优先级；当前验证器只检查范围和参数。
 
-## 12.8 ContinuityAnnotations
+## 12.8 Take、EditClip 与 TransitionSpec
+
+```yaml
+takes:
+  - id: master_take
+    performance_range: { start: 0, end: 240 }
+    coverage_role: master
+    framing: { shot_size: medium, subject_ids: [alice, bob] }
+    camera_program: { initial_state: { transform: {} } }
+edit_timeline:
+  - id: master_clip
+    take_id: master_take
+    source_range: { start: 24, end: 96 }
+    edit_range: { start: 0, end: 72 }
+    transition_in:
+      kind: cut
+      duration_frames: 0
+      easing: linear
+```
+
+`source_range` 必须位于 take 的 performance range 内；当前不做 retime，所以 source/edit duration 必须相等。`TransitionSpec` 还可携带 `match_anchor` 和 `direction`。legacy `Shot.transition_in` 仍可读取，编译时会升级为 rich transition。
+
+## 12.9 ContinuityAnnotations
 
 ```yaml
 continuity:

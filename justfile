@@ -17,7 +17,11 @@ check:
     cargo fmt --all -- --check
     cargo clippy --all-targets --all-features -- -D warnings
 
-# Validate, solve, prompt, and render every example (no Blender needed).
+# Rebuild the single-file guide from the mdBook chapter order.
+guide:
+    sh tools/build_guide.sh
+
+# Validate, compile, prompt, view, and package every example (no Blender needed).
 examples:
     cargo run -q -- validate examples/dialogue.yaml --deny-warnings
     cargo run -q -- validate examples/intentional_axis_cross.yaml --deny-warnings
@@ -26,15 +30,20 @@ examples:
     cargo run -q -- analyze examples/unsafe_axis_cross.yaml
     cargo run -q -- solve examples/dolly_zoom.yaml --deny-warnings -o /dev/null
     cargo run -q -- solve examples/jaws_beach_dolly_zoom.yaml --deny-warnings -o /dev/null
+    cargo run -q -- compile examples/jaws_beach_dolly_zoom.yaml --deny-warnings -o /dev/null
     cargo run -q -- prompt examples/dialogue.yaml > /dev/null
     cargo run -q -- view examples/dialogue.yaml --format ascii --layout strip:v > /dev/null
+    cargo run -q -- view examples/jaws_beach_dolly_zoom.yaml --intent storyboard --sampling phase-keyframes --panel plan,frame,elevation,timeline,metrics --format svg -o target/examples/jaws-storyboard.svg
+    cargo run -q -- view examples/dolly_zoom.yaml --intent model-control --cue-map --sampling op-endpoints --layout separate --format svg -o target/examples/model-control
     cargo run -q -- view examples/jaws_beach_dolly_zoom.yaml --layout animate:12 --format html -o target/examples/jaws-beach.html
-    cargo run -q -- render blender examples/dialogue.yaml --out-dir target/examples/passes --script-only > /dev/null
+    cargo run -q -- render blender examples/dialogue.yaml --profile profiles/execution/generic-dense.json --out-dir target/examples/passes --script-only > /dev/null
 
 schema:
     cargo run -q -- schema --output schema/cinematography-ir.schema.json
     cargo run -q -- schema --solved --output schema/solved-camera-ir.schema.json
+    cargo run -q -- schema --compiled --output schema/compiled-guidance-ir.schema.json
     cargo run -q -- schema --estimated --output schema/estimated-trajectory.schema.json
+    cargo run -q -- schema --execution-profile --output schema/execution-profile.schema.json
 
 # Refresh ASCII view snapshots after an intentional rendering change.
 snapshots:

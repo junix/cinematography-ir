@@ -29,7 +29,9 @@ Continuity Analyzer + Critic
                  |
                  v
 Trajectory Compiler
-  sampled camera/focus/lens curves
+  Compiled Guidance IR:
+  phases + camera/focus/lens/exposure/light curves
+  subject screen tracks + constraints + edit relations
                  |
                  v
 Backend Adapter
@@ -137,10 +139,20 @@ Agent 不应未经授权修改故事事实、生产安全约束或导演锁定�
 ```rust,ignore
 // src/execute/mod.rs
 trait CinematographyAdapter {
-    fn apply_scene(&mut self, project: &SolvedProject, scene: &SolvedScene) -> Result<()>;
-    fn render_passes(&mut self, range: Option<FrameRange>, passes: &[ConditioningPass], out_dir: &Path)
-        -> Result<PassOutput>;
+    fn capabilities(&self) -> AdapterCapabilities;
+    fn stage_scene(
+        &mut self,
+        project: &CompiledProject,
+        scene: &CompiledScene,
+        profile: &ExecutionProfile,
+    ) -> Result<()>;
+    fn execute(&mut self, request: &ExecutionRequest, out_dir: &Path)
+        -> Result<ExecutionBundle>;
 }
 ```
 
-烘焙（语义运镜 → 逐帧状态）不在适配器内，而在共享的 `solve` 层：适配器只消费 `SolvedProject`，因此 Blender 与未来的 USD / Unreal 对 `dolly_zoom` 的解释不可能分叉。`render_passes` 导出的是条件通道（depth / normal / id / vector / openpose / beauty），不是成片；纯视图层的动词是 `render_view`，与此互不混用。Backend 负责坐标变换、单位、关键帧 API、镜头模型和资源绑定；核心 IR 不导入 Blender 或 Unreal 类型。
+运镜求解不在适配器内。`CompiledProject` 已经带有逐帧世界状态、原始语义、屏幕轨迹、约束和剪辑关系，因此 Blender 与未来 USD / Unreal 不会分别解释 Dolly Zoom、Reveal 或 phase。`AdapterCapabilities` 对 metric depth、flow、pose、lighting、focus、camera matrices、transition 和具体 `PassKind` 显式协商；不支持的格式必须失败，不能伪造。
+
+执行输出是事务化 shot bundle，不是最终成片：先写临时目录并执行/验证 frame inventory，成功后写 manifest + complete marker 并原子发布。bundle 记录 source/compiled/profile hash、seed、runtime 版本、期望/实际帧数和 stdout/stderr；失败目录保留诊断但没有有效 manifest。每个 shot 单独携带 prompt、negative prompt、review diagram、typed controls、camera/screen tracks、constraints 与 validation，场景根目录的 `edit.json` 负责后续 EDL 组装。
+
+`ExecutionProfile` 把文本时间线、start/end image、dense control、depth、pose、segmentation、camera API、negative prompt 与最大帧数能力同 pass encoding 绑定。仓库提供 `profiles/execution/generic-dense.json`、`image-to-video.json` 和 `camera-api.json` 示例；text-only 模型直接消费 `cine-ir prompt` 的分阶段 command，不启动 Blender。

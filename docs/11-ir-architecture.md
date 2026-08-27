@@ -26,7 +26,8 @@ CineProject
        +-- Subject / Marker / ContinuityAxis
        +-- BlockingTrack / Beat
        +-- LightingSetup
-       +-- Shot[]
+       +-- Shot[]（兼容的单轨写法）
+       +-- Take[] + EditClip[]（覆盖拍摄与最终剪辑）
              |
              +-- purpose / coverage_role
              +-- Framing
@@ -34,7 +35,7 @@ CineProject
              |     +-- initial_state
              |     +-- TimedCameraOperation[]
              +-- ContinuityAnnotations
-             +-- transition / notes
+             +-- ShotPhrase / ShotRelation / TransitionSpec / Prohibition
 ```
 
 ## 11.3 语义层与执行层
@@ -44,38 +45,40 @@ operation:
   op: follow
   target: { type: subject, id: runner }
   offset: { x: 0.0, y: 1.5, z: -3.0 }
-  damping: 0.2
+  lag_half_life_s: 0.18
 ```
 
 执行层需要把它编译为逐帧 `CameraState`。编译依赖 blocking、碰撞体、相机动力学、构图约束和 backend 坐标系。
 
 ```text
-Cinematography IR     semantic source            src/model.rs
+Cinematography IR       authoring source             src/model.rs
        |
+       +-- solve ----> Solved Camera IR              src/solve/
+       |               compatibility/debug artifact
        v
-Solved Camera IR      sampled/baked result       src/solve/  (`cine-ir solve`)
+Compiled Guidance IR   phases + semantic intent      src/compiled.rs
+                       world/screen tracks
+                       constraints + tolerances
+                       edit relations + prohibitions
        |
-       +---> prompt   text conditioning          src/prompt/ (`cine-ir prompt`)
-       +---> view     plan/frame canvases        src/view/   (`cine-ir view`)
-       +---> execute  Blender passes             src/execute/(`cine-ir render blender`)
+       +---> prompt    time-ordered commands          src/prompt/
+       +---> view      semantic diagrams -> Canvas    src/view/
+       +---> execute   typed shot/control bundles     src/execute/
+       +---> compare   constraint-driven acceptance   src/compare.rs
 ```
 
-把逐帧轨迹直接放进核心 IR 会导致文件巨大、意图丢失、人物路径变化后轨迹失效、不同执行器无法重新求解。`SolvedProject` 是可重建的编译产物：适配器与动画预览都只消费它，从不各自解释 `CameraOperation`。分层细节见第 15 章与 ADR-1115。
+把逐帧轨迹直接放进作者 IR 会导致文件巨大、意图丢失、人物路径变化后轨迹失效。`SolvedProject` 只保留兼容的逐帧相机状态；真正的下游窄腰是可重建的 `CompiledProject`。同一 `ShotConstraint` 由 solver/compile 求值、view 绘制、prompt 描述、execute 打包、compare 验收，消费者不得再次“镜像 solver”解释 `CameraOperation`。
 
 ## 11.4 时间域
 
 ```text
-Scene-local:
-Shot.range = [80, 160)
-
-Shot-local:
-operation.range = [16, 72)
-
-Absolute scene interval:
-[96, 152)
+Performance/story time: Take.performance_range = [0, 240)
+Take-local operation:   operation.range = [16, 72)
+Selected source:        EditClip.source_range = [80, 160)
+Final edit time:        EditClip.edit_range   = [120, 200)
 ```
 
-半开区间避免切点重复归属。
+所有范围都是半开区间。Take 可以覆盖同一段表演；EditClip 负责 source frame 到最终剪辑 frame 的映射。转场由 `TransitionSpec` 携带 duration、easing、match anchor 与方向；转场重叠必须由下一 clip 的 transition duration 覆盖。
 
 ## 11.5 引用而不是复制
 

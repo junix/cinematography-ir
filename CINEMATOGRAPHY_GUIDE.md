@@ -912,7 +912,8 @@ CineProject
        +-- Subject / Marker / ContinuityAxis
        +-- BlockingTrack / Beat
        +-- LightingSetup
-       +-- Shot[]
+       +-- Shot[]（兼容的单轨写法）
+       +-- Take[] + EditClip[]（覆盖拍摄与最终剪辑）
              |
              +-- purpose / coverage_role
              +-- Framing
@@ -920,7 +921,7 @@ CineProject
              |     +-- initial_state
              |     +-- TimedCameraOperation[]
              +-- ContinuityAnnotations
-             +-- transition / notes
+             +-- ShotPhrase / ShotRelation / TransitionSpec / Prohibition
 ```
 
 ## 11.3 语义层与执行层
@@ -930,37 +931,40 @@ operation:
   op: follow
   target: { type: subject, id: runner }
   offset: { x: 0.0, y: 1.5, z: -3.0 }
-  damping: 0.2
+  lag_half_life_s: 0.18
 ```
 
 执行层需要把它编译为逐帧 `CameraState`。编译依赖 blocking、碰撞体、相机动力学、构图约束和 backend 坐标系。
 
 ```text
-Cinematography IR     semantic source
+Cinematography IR       authoring source             src/model.rs
        |
+       +-- solve ----> Solved Camera IR              src/solve/
+       |               compatibility/debug artifact
        v
-Solved Camera IR      sampled/baked result
+Compiled Guidance IR   phases + semantic intent      src/compiled.rs
+                       world/screen tracks
+                       constraints + tolerances
+                       edit relations + prohibitions
        |
-       v
-Backend Adapter       Blender/Unreal/USD/etc.
+       +---> prompt    time-ordered commands          src/prompt/
+       +---> view      semantic diagrams -> Canvas    src/view/
+       +---> execute   typed shot/control bundles     src/execute/
+       +---> compare   constraint-driven acceptance   src/compare.rs
 ```
 
-把逐帧轨迹直接放进核心 IR 会导致文件巨大、意图丢失、人物路径变化后轨迹失效、不同执行器无法重新求解。
+把逐帧轨迹直接放进作者 IR 会导致文件巨大、意图丢失、人物路径变化后轨迹失效。`SolvedProject` 只保留兼容的逐帧相机状态；真正的下游窄腰是可重建的 `CompiledProject`。同一 `ShotConstraint` 由 solver/compile 求值、view 绘制、prompt 描述、execute 打包、compare 验收，消费者不得再次“镜像 solver”解释 `CameraOperation`。
 
 ## 11.4 时间域
 
 ```text
-Scene-local:
-Shot.range = [80, 160)
-
-Shot-local:
-operation.range = [16, 72)
-
-Absolute scene interval:
-[96, 152)
+Performance/story time: Take.performance_range = [0, 240)
+Take-local operation:   operation.range = [16, 72)
+Selected source:        EditClip.source_range = [80, 160)
+Final edit time:        EditClip.edit_range   = [120, 200)
 ```
 
-半开区间避免切点重复归属。
+所有范围都是半开区间。Take 可以覆盖同一段表演；EditClip 负责 source frame 到最终剪辑 frame 的映射。转场由 `TransitionSpec` 携带 duration、easing、match anchor 与方向；转场重叠必须由下一 clip 的 transition duration 覆盖。
 
 ## 11.5 引用而不是复制
 
@@ -1026,10 +1030,12 @@ scenes: []
   blocking: ...
   beats: ...
   lighting_setups: ...
-  shots: ...
+  shots: ...          # 兼容的最终剪辑单轨
+  takes: ...          # 可重叠的拍摄覆盖
+  edit_timeline: ...  # source -> edit 映射
 ```
 
-`shots` 是单轨编辑时间线，因此默认不允许重叠。多机位素材与 split-screen 属于后续多轨扩展。
+`shots` 是兼容的单轨编辑时间线，因此不允许重叠。需要 master、single、reaction 同时覆盖一段表演时，使用可重叠 `takes`；`edit_timeline` 从 take 选择 source range。当前 edit timeline 是画面单轨，转场允许显式 overlap，音频多轨仍在范围外。
 
 ## 12.3 Subject 与 TargetRef
 
@@ -1041,6 +1047,12 @@ subjects:
     initial_transform:
       position: { x: -1.5, y: 0.0, z: 0.0 }
       rotation_deg: { pitch: 0.0, yaw: 90.0, roll: 0.0 }
+    geometry_proxy: { kind: capsule_rig }
+    pose_track:
+      frames:
+        - frame: 0
+          joints: { head: { x: -1.5, y: 1.65, z: 0.0 } }
+          gaze: { type: subject, id: bob }
 ```
 
 引用形式：
@@ -1082,9 +1094,15 @@ axes:
       lead_room: 0.28
       negative_space: right
   camera: ...
+  phrases: [reaction_hold]
+  relations:
+    - { kind: reaction_to, shot_id: bob_close_up }
+  prohibit: [unplanned_cut]
 ```
 
 `headroom` 与 `lead_room` 是 `[0,1]` 规范化规划值；当前版本不规定唯一测量算法，backend 应说明其屏幕空间解释。
+
+`ShotPhrase` 位于物理 operation 和剪辑关系之间，包括 `pressure_push_in`、`subject_lock_dolly_zoom`、`foreground_parallax_reveal`、`visible_axis_cross`、`rack_focus_reveal`、`reaction_hold`、`walk_and_talk_follow` 与 `orbit_relationship_shift`。未显式填写时，compiler 会从运镜、purpose 与连续性桥接推导，但不会覆盖作者值。
 
 ## 12.6 CameraState
 
@@ -1118,6 +1136,28 @@ operations:
       distance_m: 0.35
 ```
 
+Follow 使用与帧率无关的时间常数：
+
+```yaml
+operation:
+  op: follow
+  target: { type: subject, id: runner }
+  offset: { x: 0.0, y: 1.5, z: -3.0 }
+  lag_half_life_s: 0.18
+```
+
+Reveal 可声明可观察的遮挡目标，solver 会根据 target/occluder 的投影包围盒求横移，而不是把它当作普通 truck：
+
+```yaml
+operation:
+  op: reveal
+  target: { type: subject, id: hero }
+  occluder: { type: subject, id: doorway }
+  lateral_distance_m: 1.0       # 无可见比例时的兼容 fallback
+  visibility: { from: 0.05, to: 0.85, monotonic: true }
+  preserve: { target_screen_y: 0.48 }
+```
+
 支持：
 
 ```text
@@ -1134,7 +1174,29 @@ reveal
 
 操作可以时间重叠，例如 `follow` 与 `handheld_noise` 同时存在。求解器必须定义组合优先级；当前验证器只检查范围和参数。
 
-## 12.8 ContinuityAnnotations
+## 12.8 Take、EditClip 与 TransitionSpec
+
+```yaml
+takes:
+  - id: master_take
+    performance_range: { start: 0, end: 240 }
+    coverage_role: master
+    framing: { shot_size: medium, subject_ids: [alice, bob] }
+    camera_program: { initial_state: { transform: {} } }
+edit_timeline:
+  - id: master_clip
+    take_id: master_take
+    source_range: { start: 24, end: 96 }
+    edit_range: { start: 0, end: 72 }
+    transition_in:
+      kind: cut
+      duration_frames: 0
+      easing: linear
+```
+
+`source_range` 必须位于 take 的 performance range 内；当前不做 retime，所以 source/edit duration 必须相等。`TransitionSpec` 还可携带 `match_anchor` 和 `direction`。legacy `Shot.transition_in` 仍可读取，编译时会升级为 rich transition。
+
+## 12.9 ContinuityAnnotations
 
 ```yaml
 continuity:
@@ -1288,7 +1350,9 @@ Continuity Analyzer + Critic
                  |
                  v
 Trajectory Compiler
-  sampled camera/focus/lens curves
+  Compiled Guidance IR:
+  phases + camera/focus/lens/exposure/light curves
+  subject screen tracks + constraints + edit relations
                  |
                  v
 Backend Adapter
@@ -1394,14 +1458,199 @@ Agent 不应未经授权修改故事事实、生产安全约束或导演锁定�
 ## 14.7 Backend 边界
 
 ```rust,ignore
-trait CinematographyBackend {
-    fn bake_camera_plan(&self, shot: &Shot) -> Result<BakedCamera>;
-    fn apply_lighting(&self, setup: &LightingSetup) -> Result<()>;
-    fn render_preview(&self, range: FrameRange) -> Result<PreviewArtifact>;
+// src/execute/mod.rs
+trait CinematographyAdapter {
+    fn capabilities(&self) -> AdapterCapabilities;
+    fn stage_scene(
+        &mut self,
+        project: &CompiledProject,
+        scene: &CompiledScene,
+        profile: &ExecutionProfile,
+    ) -> Result<()>;
+    fn execute(&mut self, request: &ExecutionRequest, out_dir: &Path)
+        -> Result<ExecutionBundle>;
 }
 ```
 
-Backend 负责坐标变换、单位、关键帧 API、镜头模型和资源绑定；核心 IR 不导入 Blender 或 Unreal 类型。
+运镜求解不在适配器内。`CompiledProject` 已经带有逐帧世界状态、原始语义、屏幕轨迹、约束和剪辑关系，因此 Blender 与未来 USD / Unreal 不会分别解释 Dolly Zoom、Reveal 或 phase。`AdapterCapabilities` 对 metric depth、flow、pose、lighting、focus、camera matrices、transition 和具体 `PassKind` 显式协商；不支持的格式必须失败，不能伪造。
+
+执行输出是事务化 shot bundle，不是最终成片：先写临时目录并执行/验证 frame inventory，成功后写 manifest + complete marker 并原子发布。bundle 记录 source/compiled/profile hash、seed、runtime 版本、期望/实际帧数和 stdout/stderr；失败目录保留诊断但没有有效 manifest。每个 shot 单独携带 prompt、negative prompt、review diagram、typed controls、camera/screen tracks、constraints 与 validation，场景根目录的 `edit.json` 负责后续 EDL 组装。
+
+`ExecutionProfile` 把文本时间线、start/end image、dense control、depth、pose、segmentation、camera API、negative prompt 与最大帧数能力同 pass encoding 绑定。仓库提供 `profiles/execution/generic-dense.json`、`image-to-video.json` 和 `camera-api.json` 示例；text-only 模型直接消费 `cine-ir prompt` 的分阶段 command，不启动 Blender。
+
+---
+
+# 15. 条件信号流水线：solve / prompt / view / execute
+
+> 设计决策见 ADR-1115（`~/projects/docs/adr/1115-cinematography-ir-view-and-execute-layers.md`）。
+
+Cinematography IR 的下游不是「渲染成片」，而是把镜头语言编译成**视频生成模型能吃的条件信号**。目标模型接受三类输入，IR 的三个地层恰好一一对应：
+
+| 模型输入槽 | 消费 IR 的层 | 字段 | 实现模块 | CLI |
+|---|---|---|---|---|
+| ① 文本 prompt | `CompiledShot.intent + phases + constraints + prohibitions` | 时间分段命令与 negative constraints | `prompt/` | `cine-ir prompt` |
+| ② 参考图 | `screen_tracks + framing + continuity` | storyboard / motion grammar / clean control | `view/`、`execute/blender` | `cine-ir view` |
+| ③ 参考视频/数值控制 | `camera/subject/lens/focus/exposure/light tracks` | typed pass video + camera JSON | `execute/blender` | `cine-ir render blender` |
+
+## 15.1 分层
+
+```text
+CineProject（语义 IR，源数据，进版本库）
+        |
+        v
+   solve::solve_project
+   CameraOperation -> CameraState[t]
+        |
+   compiled::compile_project
+   phases + world/screen tracks + constraints
+   prohibitions + take/edit relations
+        |
+   CompiledProject（所有新下游的共享编译产物）
+        |
+   +----+------------------+-------------------+----------------+
+   v                       v                   v                v
+prompt（纯）          view（纯）          execute（非纯）   compare（纯）
+时间命令               Diagram IR → Canvas  typed shot bundle  可观察约束验收
+```
+
+归属判据固定为三问：会因几何失败吗（solve）？需要外部运行时或真实资产吗（execute）？只是把同一份信息重新编码吗（纯渲染器）。**输出会动不代表它是执行；需要外部运行时和真实资产才代表。**
+
+## 15.2 Solved Camera IR 与 Compiled Guidance IR
+
+`cine-ir solve` 是兼容/调试用的逐帧轨迹；`cine-ir compile` 才是下游窄腰：
+
+```bash
+cine-ir solve examples/dolly_zoom.yaml -o /tmp/dz.json
+cine-ir schema --solved
+cine-ir compile examples/jaws_beach_dolly_zoom.yaml -o /tmp/jaws-guidance.json
+cine-ir schema --compiled
+```
+
+每帧携带 `position`、`rotation_deg`、以及世界空间的 `forward / up / right` 单位向量，消费者无需重推欧拉约定。`draft` 是确定性运动学；`full` 在 draft 结果上应用 rig 速度/加速度上限、显式 `GeometryProxy` 碰撞，并在位置修正后重新建立相机基向量。组合规则：
+
+- 相对运镜（pan/tilt/roll/dolly/truck/pedestal/translate/rotate/crane 位移/reveal 位移）按每帧进度增量 `Δu` 沿相机**当前**轴累积，重叠运镜自然叠加；
+- 目标运镜（look_at/orbit/zoom/rack_focus/dolly_zoom）在开始时快照相机，按 `u` 从快照插值到目标；区间内最后一帧到达目标，**区间结束后释放通道**，后续运镜在保持的终态上继续累积；
+- `follow` 使用 `lag_half_life_s` 转换为 `alpha = 1 - 2^(-dt/half_life)`，因此 24/30/60 fps 的时间响应一致；legacy `damping` 按 24 fps 换算；
+- `handheld_noise` 是确定性叠加层（seed 决定），带约 0.25 s 的淡入淡出，不回写基态；
+- `dolly_zoom` 每帧按投影包围盒求焦距，使主体 bbox height 达到 `keep_subject_frame_fraction`；无可投影 subject 时才退回 `focal ∝ distance`；
+- `reveal.visibility` 根据 target/occluder 投影遮挡求横移，`preserve.target_screen_y` 再求 pitch，使可见比例与屏幕 Y 都可验收。
+
+求解同时产出几何诊断：`GEOMETRY_SUBJECT_BEHIND_CAMERA`、`GEOMETRY_SUBJECT_OUTSIDE_FOV`、`GEOMETRY_AXIS_SIDE_MISMATCH`（声明的轴线侧与几何推导不一致；正侧定义为从 `from` 看向 `to` 时相机在右手边）。
+
+### 坐标约定
+
+身份旋转的相机沿 `forward_axis` 看，`up_axis` 为上；右向量为 `forward × up`（右手系）或 `up × forward`（左手系）。旋转顺序 yaw → pitch → roll，并且**在任何坐标系下 `+yaw` 都向左转、`+pitch` 都向上抬**（物理右手定则）。这与 Unity 的欧拉角相反，适配 Unity 数据须取反。`forward_axis` 与 `up_axis` 平行会被校验器拒绝（`COORDINATE_SYSTEM_AXES_PARALLEL`）。
+
+## 15.3 文本 prompt 与方言
+
+```bash
+cine-ir prompt examples/dialogue.yaml --shot alice_close_up
+cine-ir prompt examples/dialogue.yaml --dialect profiles/prompt/generic.json --json
+```
+
+IR 枚举不直接进 prompt，而是经 `profiles/prompt/<model>.json` 的方言表映射为摄影词汇（`medium_close_up` → "medium close-up"）。方言文件必须覆盖全部枚举变体与 emitter 用到的短语键，加载时校验完整性。角色用**颜色进图、名字进 prompt** 的方式绑定身份："Alice (red)"，颜色与条件图中的白模颜色一致（D7a/D10）。走位关键帧的 `action` 自由文本原样进入 prompt——这是当前表达角色动作的通道。
+
+## 15.4 View：审片图、运动语法与模型控制分开
+
+```text
+1. 时间采样  --sampling per-shot | per-beat | op-endpoints | semantic-events | phase-keyframes | constraint-extrema | cut-pairs | every:N | continuous[:fps]
+2. 场景投影  --panel plan,frame,elevation,timeline,metrics
+3. 符号叠加  --overlay ... 受 --intent 门控
+4. 布局      --layout grid:N | strip:h|v | separate | animate[:fps]（animate:FPS 等价于 --sampling continuous:FPS）
+5. 编码      --format svg | png[:scale] | ascii[:cols] | html | markdown[:cols]
+```
+
+```bash
+# 人类审查：拼格 PNG，含标注、轴线、参考线与诊断
+cine-ir view examples/dialogue.yaml --format png -o /tmp/dialogue.png
+# 终端速览
+cine-ir view examples/dialogue.yaml --format ascii --layout strip:v
+# ASCII + 文字（每镜一段 prompt）
+cine-ir view examples/dialogue.yaml --format markdown
+# 完整审片卡：phase keyframes + global/local geometry + elevation + curves
+cine-ir view examples/jaws_beach_dolly_zoom.yaml --intent storyboard \
+  --sampling phase-keyframes --panel plan,frame,elevation,timeline,metrics \
+  --format svg -o /tmp/jaws-card.svg
+# clean control 与独立 scribble cue map；箭头不会烧进 proxy 图
+cine-ir view examples/dolly_zoom.yaml --intent model-control --cue-map \
+  --sampling op-endpoints --layout separate --format png -o /tmp/control/
+# 动态预览：HTML 动画，可直接交给 insight-video 出 mp4
+cine-ir view examples/dolly_zoom.yaml --layout animate:12 --format html -o /tmp/previz.html
+```
+
+所有编码器消费同一个 `Canvas`（`view::canvas`），因此 SVG 与 ASCII 画的是同一张图。俯视投影沿 `up_axis` 压平、以 `forward_axis` 为页面上方，不假设 Y-up；同一场景的所有面板共用一次拟合，拼格与动画帧的比例一致。
+
+### `--intent`
+
+| intent | 回答的问题 | 默认内容 |
+|---|---|---|
+| `storyboard` | 镜头从何状态到何状态 | plan/frame，可加 elevation/timeline/metrics |
+| `motion` | 相机机制与画面运动如何不同 | camera path、image-motion、focus、occlusion cue |
+| `continuity` | 一刀两侧的轴线/视线/方向 | cut pairs |
+| `model-control` | 模型实际消费什么 | clean proxy；`--cue-map` 另产独立 scribble 图 |
+| `constraints` | 哪个可观察约束超差 | constraint extrema + PASS/FAIL |
+| `comparison` | 生成结果与 guidance 哪里不同 | comparison overlay 入口 |
+
+clean model-control 中出现文字或箭头都是缺陷。只有 `ControlProfile.include_cue_map` 为真时才额外输出 cue-map artifact；cue map 没有 silhouette，不污染 beauty/depth/ID。`CueScope::Current` 是默认；`upcoming` 和 `whole-shot` 仅供显式 review summary。
+
+### 画面运动提示（箭头）
+
+语义图层把 `CameraCommand`、`ImageMotion`、`FocusCue`、`OcclusionCue`、`EditCue` 分开。Dolly 的 camera path 和深度相关 radial flow、Zoom 的统一缩放、Dolly Zoom 的主体 bbox lock 与背景 separation、Rack Focus 的焦平面 handoff、Reveal 的 visible-fraction 曲线不再共用一个“运动箭头”。所有语义 item 先 lower 到同一 Canvas，再编码 SVG/PNG/ASCII/HTML；Canvas 支持 opacity/group/clip/z-index/cubic path/vector field/image embedding 与 label collision。
+
+ASCII 对非 ASCII 标签写成 `uXXXX`，不再输出 `?`。PNG 的 Latin 字体内嵌；包含中文时加载 host CJK fallback，并用不同中文字符的栅格结果回归，避免统一 missing-glyph 方框。纯几何与 Latin 产物仍保持 byte-stable。
+
+### HTML 动画与 insight-video
+
+`--layout animate --format html` 产出的页面自包含，根元素 `<main data-composition-id data-duration>`（时长以秒计，取自场景帧数 / 帧率，与采样密度无关），每个采样格带 `data-t` 场景时间，并实现 `window.__insightVideo.seek(t)`：在浏览器中自动播放，被 insight-video 首次 seek 后停止自播、精确定帧，满足其确定性门。`--sampling per-shot --layout animate` 也成立——每格持续到下一个镜头开始：
+
+```bash
+insight-video render /tmp/previz.html -o /tmp/previz.mp4
+```
+
+## 15.5 Blender：白模条件序列的多通道渲染器
+
+```bash
+cine-ir render blender examples/dialogue.yaml --out-dir /tmp/passes \
+  --profile profiles/execution/generic-dense.json
+cine-ir render blender examples/dialogue.yaml --out-dir /tmp/passes --script-only
+BLENDER=/opt/blender/blender cine-ir render blender solved.json --out-dir /tmp/passes --frames 80..160
+```
+
+Blender 的角色**不是**出成片，而是渲染带最简人形骨架的黏土白模并一次导出全部主流条件通道，因此「目标模型未定」不阻塞：
+
+| 通道 | 来源 | 编码 |
+|---|---|---|
+| `beauty` | Cycles 合成层 | 8-bit sRGB PNG，黑天空 + 灰地面 |
+| `depth_metric` | Z pass | 32-bit float EXR，米 |
+| `depth` | Z pass → Map Range | 16-bit data PNG，近白远黑；manifest 给 near/far |
+| `normal` | 材质覆盖：相机空间法线 `(n+1)/2` | 16-bit data PNG |
+| `id` | 材质覆盖：Object Info Color | 16-bit data PNG，每个主体一种确定性色 |
+| `vector` | Vector pass | OpenEXR 32-bit |
+| `openpose` | 独立 view layer 的发光骨架 | COCO-18 关节 + ControlNet 肢体配色，黑底 |
+| `occlusion` | proxy mask | 16-bit mask |
+| `camera` | intrinsics/extrinsics | JSON |
+| `pose_keypoints` | authored pose/gaze/contact | JSON |
+
+payload 还包括 geometry proxy、pose/gaze/contact、rig、phase、constraints/evaluations、prohibitions、screen tracks、exposure、authored lights 与 edit timeline。Beauty 使用作者灯光/曝光/白平衡/DOF/motion blur；没有灯光才使用 neutral fallback。坐标转换全部在 Rust 侧完成，Python 只接收 Blender 世界空间。
+
+执行先渲染到 `.scene.rendering-PID`，验证文件数/格式后写最终 manifest 与 complete marker，再原子发布；失败保留 `.scene.failed-PID` 的 build.py/stdout/stderr，但不会留下貌似成功的 manifest。最终 scene bundle 含 `edit.json` 和 `shots/<id>/{guidance,prompt,negative_prompt,review,controls,metadata,manifest}`，记录 runtime/source/compiled/profile hash、seed 与 frame inventory。
+
+无 Blender 的 CI 环境以 `tests/python/bpy_stub` 桩执行整段脚本，验证控制流与数据管线；涉及 Blender 的改动还需在 Blender 5.2 LTS 中完成真实 `bpy` 运行与输出制品解码验证。
+
+## 15.6 闭环测量
+
+```bash
+cine-ir schema --estimated                       # 估计轨迹的 JSON 结构
+cine-ir compare examples/dialogue.yaml estimate.json --align similarity
+```
+
+`compare` 同时测世界与观众可见结果：position/relative motion、forward/up/horizon、focal、full Sim(3) alignment，以及 bbox height、center drift、background scale、pair separation、optical flow、reveal visibility、focus handoff、phase/cut timing。`--temporal dtw` 可在不同生成速度之间对齐轨迹与屏幕结果，但 phase/cut timing 仍用原始 estimate 计算，不能把节奏错误对齐掉。报告按 constraint 输出 `PASS / FAIL / INDETERMINATE`，而不是只给一个 overall RMSE。
+
+## 15.7 明确不做
+
+- 角色外观身份保真：白模只需可区分（颜色 + 可选人名），不需可辨认；由下游另一模型的输入负责。
+- 视图层加载资产：一旦读 `.blend` / `.usd`，它就不再是纯函数。
+- 在几何通道上绘制箭头或文字。
 
 ---
 

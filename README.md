@@ -4,8 +4,9 @@
 
 - 多章节中文 mdBook：系统介绍景别、构图、镜头、景深、曝光、运镜、场面调度、连续性、灯光、Coverage 与视觉叙事；
 - Rust 数据模型：YAML / JSON 序列化与 JSON Schema 生成；
-- `cine-ir` CLI：`validate`、`analyze`、`inspect`、`normalize`、`schema`、`solve`、`prompt`、`view`、`render blender`、`compare`；
-- 条件信号流水线（ADR-1115）：语义运镜求解为逐帧 Solved Camera IR，再分别产出文本 prompt、俯视/画面白模图（svg / png / ascii / html 动画 / markdown）与 Blender 多通道条件序列（depth / normal / id / vector / openpose）；
+- `cine-ir` CLI：`validate`、`analyze`、`inspect`、`normalize`、`schema`、`solve`、`compile`、`prompt`、`view`、`render blender`、`compare`；
+- 共享 Compiled Cinematography / Guidance IR：同时保存作者意图、phase、逐帧世界轨迹、屏幕空间轨迹、约束/容差、禁止条件、拍摄覆盖与剪辑关系；
+- 条件信号流水线：`prompt`、`view`、`execute`、`compare` 共同消费这份编译结果，Blender 可输出 beauty / metric + normalized depth / normal / ID / flow / pose / occlusion / camera metadata；
 - 连续性分析：180° 轴线、银幕方向、互反视线、30° 小角度切换；
 - 正确、故意越轴、错误越轴与 Dolly Zoom 示例；
 - 单元测试和可扩展的 backend/compiler 边界。
@@ -35,12 +36,14 @@ Continuity Constraints
   轴线 / 银幕方向 / 视线 / 30° / 跨轴桥接
           |
           v
-Solved Camera IR (cine-ir solve)
+Compiled Guidance IR (cine-ir compile)
+  intent + phases + world/screen tracks
+  constraints + tolerances + edit relations
           |
-   +------+-----------+----------------+
-   v                  v                v
-prompt            view (纯)        execute (Blender)
-文本条件           plan/frame 图     depth/normal/id/... 通道
+   +------+-----------+----------------+-------------+
+   v                  v                v             v
+prompt            view (纯)        execute       compare
+时间命令           审片/控制图         shot bundle   意图验收
 ```
 
 只保存 `position(t)`、`rotation(t)` 和 `focal_length(t)` 会丢失镜头为何存在、为何移动、跨轴是否故意、拉焦在转移什么注意力等信息。因此核心 IR 同时保留高层语义与低层参数。
@@ -69,10 +72,11 @@ cinematography-ir/
 │   ├── math.rs                 # 坐标系感知的基向量 / 旋转 / 投影数学
 │   ├── palette.rs              # 主体确定性配色
 │   ├── solve/                  # 语义运镜 → 逐帧 Solved Camera IR + 几何诊断
+│   ├── compiled.rs             # 下游共享的 Compiled Guidance IR 窄腰
 │   ├── prompt/                 # 文本 prompt 槽（方言 profile）
 │   ├── view/                   # 纯视图层：Canvas → svg / png / ascii / html / markdown
 │   ├── execute/blender/        # Blender bpy 脚本生成与多通道导出
-│   ├── compare.rs              # 估计轨迹 vs 求解意图（闭环测量）
+│   ├── compare.rs              # 世界轨迹 + 屏幕结果 + phase/cut 的闭环测量
 │   ├── diagnostic.rs
 │   ├── io.rs
 │   ├── report.rs
@@ -90,6 +94,8 @@ cargo run -- analyze examples/unsafe_axis_cross.yaml
 cargo run -- inspect examples/dialogue.yaml
 cargo run -- normalize examples/dialogue.yaml --output /tmp/dialogue.json
 cargo run -- schema --output schema/cinematography-ir.schema.json
+cargo run -- schema --compiled --output schema/compiled-guidance-ir.schema.json
+cargo run -- schema --execution-profile --output schema/execution-profile.schema.json
 ```
 
 机器可读诊断：
@@ -102,13 +108,18 @@ cargo run -- validate examples/unsafe_axis_cross.yaml --json
 
 ```bash
 cargo run -- solve examples/dolly_zoom.yaml -o /tmp/dz.json          # 逐帧 Solved Camera IR
+cargo run -- compile examples/jaws_beach_dolly_zoom.yaml -o /tmp/jaws-guidance.json
 cargo run -- prompt examples/dialogue.yaml --shot alice_close_up     # 文本 prompt
 cargo run -- view examples/dialogue.yaml --format ascii --layout strip:v
 cargo run -- view examples/dialogue.yaml --format png -o /tmp/dialogue.png
-cargo run -- view examples/dialogue.yaml --intent conditioning --layout separate --format png -o /tmp/cond/
+cargo run -- view examples/jaws_beach_dolly_zoom.yaml --sampling phase-keyframes \
+  --panel plan,frame,elevation,timeline,metrics --format svg -o /tmp/jaws-card.svg
+cargo run -- view examples/dolly_zoom.yaml --intent model-control --cue-map \
+  --sampling op-endpoints --layout separate --format png -o /tmp/control/
 cargo run -- view examples/dolly_zoom.yaml --layout animate:12 --format html -o /tmp/previz.html
-cargo run -- render blender examples/dialogue.yaml --out-dir /tmp/passes --passes depth,normal,id --script-only
-cargo run -- compare examples/dialogue.yaml estimate.json --align similarity
+cargo run -- render blender examples/dialogue.yaml --out-dir /tmp/passes \
+  --profile profiles/execution/generic-dense.json --script-only
+cargo run -- compare examples/dialogue.yaml estimate.json --align similarity --temporal dtw
 ```
 
 ### 经典镜头基准：《大白鲨》式反向 Dolly Zoom
@@ -175,18 +186,17 @@ operations:
 [start, end)
 ```
 
-`Shot.range` 是场景局部帧；`TimedCameraOperation.range` 是镜头局部帧。默认坐标系为右手系、Y 向上、-Z 向前、米，但文件仍显式携带坐标系统，适配器不得假设 Blender、Unreal、Unity 或 Three.js 采用同一约定。
+旧式单轨文档中 `Shot.range` 是最终剪辑的场景局部帧；`TimedCameraOperation.range` 是镜头局部帧。需要覆盖拍摄、多机位、source handles 或 dissolve 时，使用可重叠的 `Take.performance_range`，再由 `EditClip.source_range → edit_range` 映射到最终剪辑。默认坐标系为右手系、Y 向上、-Z 向前、米，但文件仍显式携带坐标系统，适配器不得假设 Blender、Unreal、Unity 或 Three.js 采用同一约定。
 
 ## 明确限制
 
-当前版本是规划 IR、静态分析器与 draft 精度的运动学求解器，不是完整摄影物理模拟器。尚未实现：
+当前版本已经能编译、执行和按可观察约束验收镜头语言，但仍不是完整摄影物理或视频生成系统。尚未实现：
 
 - 光学畸变、T-stop、镜头呼吸和真实镜头数据库；
-- 碰撞、遮挡、相机动力学限制与约束求解（`--fidelity full`）；
-- 多机位同步拍摄与多轨编辑；
+- 完整刚体/关节动力学、复杂网格碰撞与全局 UNSAT 约束优化（`--fidelity full` 已实现 rig 速度/加速度限制和显式 proxy 碰撞）；
+- 真正的多轨 NLE 与音频 J-cut/L-cut 合成（当前 `Take + EditClip + TransitionSpec` 负责编译 EDL 和 shot bundle）；
 - 从几何自动推导银幕方向和视线（轴线侧已可推导并与声明值交叉校验）；
-- `dolly_zoom.keep_subject_frame_fraction` 的精确求解；
 - Unreal / Three.js / USD 适配器（Blender 已有，并已在 Blender 5.2 LTS 实机验证）；
 - 从生成视频估计相机轨迹的估计器（`compare` 只实现比对的一半）。
 
-明确不做：角色外观身份保真（白模只需可区分，由下游另一模型负责）；视图层加载任何资产。这些应位于 compiler/solver/backend 层，而不是继续膨胀核心交换格式。
+`dolly_zoom.keep_subject_frame_fraction` 与 Reveal 的可见比例/目标屏幕 Y 已按投影几何求解；Full fidelity 只在显式 `GeometryProxy` 上做碰撞，不伪装成生产级物理模拟。明确不做：角色外观身份保真（白模只需可区分，由下游另一模型负责）；视图语义层加载 `.blend` / `.usd` 资产。这些属于 solver/backend，而不是低层 Canvas。

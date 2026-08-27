@@ -578,7 +578,11 @@ def rust_balanced(path: Path) -> None:
             continue
         if ch == "'":
             # Lifetimes such as 'a are not character literals.
-            if i + 2 < n and text[i + 1].isalpha() and text[i + 2] not in {"'", "\\"}:
+            if (
+                i + 2 < n
+                and (text[i + 1].isalpha() or text[i + 1] == "_")
+                and text[i + 2] not in {"'", "\\"}
+            ):
                 i += 1
                 continue
             i += 1
