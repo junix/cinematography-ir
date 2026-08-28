@@ -1,412 +1,12 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-  <script data-code2arch-runtime-bootstrap>
-    window.__docReady = false;
-    window.__docErrors = [];
-    window.addEventListener("error", (event) => {
-      window.__docErrors.push(String(event.error || event.message || "unknown error"));
-    });
-    window.addEventListener("unhandledrejection", (event) => {
-      window.__docErrors.push(String(event.reason || "unhandled rejection"));
-    });
-  </script>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cinematography IR · 架构总览</title>
-<style>
-  :root {
-    --bg: #fbfcfd;
-    --fg: #1a1f2e;
-    --muted: #5b6475;
-    --border: #e3e8ef;
-    --accent: #2563eb;
-    --accent-soft: #dbeafe;
-    --accent-deep: #1d4ed8;
-    --layer1: #eff6ff;
-    --layer2: #dcfce7;
-    --layer3: #fef3c7;
-    --layer4: #fce7f3;
-    --layer5: #ede9fe;
-    --layer6: #ffedd5;
-    --success: #059669;
-    --warning: #d97706;
-    --error: #dc2626;
-    --code-bg: #f1f5f9;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
-    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.05);
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-    background: var(--bg);
-    color: var(--fg);
-    line-height: 1.65;
-    -webkit-font-smoothing: antialiased;
-  }
-  .container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 48px 32px 80px;
-  }
-  header.hero {
-    text-align: center;
-    margin-bottom: 56px;
-    padding-bottom: 40px;
-    border-bottom: 1px solid var(--border);
-  }
-  .badge {
-    display: inline-block;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 4px 12px;
-    border-radius: 999px;
-    background: var(--accent-soft);
-    color: var(--accent-deep);
-    letter-spacing: 0.5px;
-    margin-bottom: 16px;
-  }
-  h1 {
-    font-size: 38px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-    margin-bottom: 12px;
-    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #7c3aed 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  .subtitle {
-    font-size: 17px;
-    color: var(--muted);
-    max-width: 640px;
-    margin: 0 auto;
-  }
-  h2 {
-    font-size: 24px;
-    font-weight: 700;
-    margin: 48px 0 20px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid var(--accent-soft);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  h2::before {
-    content: '';
-    width: 4px;
-    height: 22px;
-    background: var(--accent);
-    border-radius: 2px;
-  }
-  h3 {
-    font-size: 17px;
-    font-weight: 600;
-    margin: 20px 0 10px;
-    color: var(--fg);
-  }
-  p { margin-bottom: 12px; color: #2a3140; }
-  .lead {
-    font-size: 16px;
-    color: var(--muted);
-    margin-bottom: 24px;
-  }
-
-  /* Feature grid */
-  .features {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
-    margin: 24px 0;
-  }
-  .feature-card {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: var(--shadow-sm);
-    transition: all 0.2s ease;
-  }
-  .feature-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    border-color: #cbd5e1;
-  }
-  .feature-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    margin-bottom: 12px;
-    font-weight: 700;
-  }
-  .feature-card h4 {
-    font-size: 15px;
-    font-weight: 600;
-    margin-bottom: 6px;
-  }
-  .feature-card p {
-    font-size: 13.5px;
-    color: var(--muted);
-    margin-bottom: 0;
-    line-height: 1.55;
-  }
-
-  /* Architecture diagram container */
-  .arch-diagram {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 32px 24px;
-    box-shadow: var(--shadow-md);
-    margin: 24px 0 32px;
-    overflow-x: auto;
-  }
-  .arch-diagram svg {
-    display: block;
-    margin: 0 auto;
-    max-width: 100%;
-  }
-
-  /* Layer blocks in diagram */
-  .layer-box {
-    transition: all 0.3s ease;
-    cursor: default;
-  }
-  .layer-box:hover rect {
-    filter: brightness(0.96);
-    stroke-width: 2;
-  }
-  .flow-arrow {
-    opacity: 0;
-    transform-origin: center;
-  }
-  .flow-arrow.animate {
-    animation: arrowFade 1.6s ease-in-out forwards;
-  }
-  @keyframes arrowFade {
-    0% { opacity: 0; }
-    30% { opacity: 1; }
-    100% { opacity: 0.7; }
-  }
-  .module-pulse {
-    animation: pulse 2s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-  }
-
-  /* Walkthrough */
-  .walkthrough {
-    background: linear-gradient(135deg, #f8fafc 0%, #f0f4f8 100%);
-    border-radius: 12px;
-    padding: 28px;
-    margin: 20px 0;
-    border-left: 4px solid var(--accent);
-  }
-  .walkthrough h3 { margin-top: 0; color: var(--accent-deep); }
-  .walkthrough ol {
-    padding-left: 20px;
-    counter-reset: step;
-    list-style: none;
-  }
-  .walkthrough li {
-    counter-increment: step;
-    margin-bottom: 14px;
-    padding-left: 8px;
-    position: relative;
-  }
-  .walkthrough li::before {
-    content: counter(step);
-    position: absolute;
-    left: -28px;
-    top: 2px;
-    width: 22px;
-    height: 22px;
-    background: var(--accent);
-    color: #fff;
-    border-radius: 50%;
-    font-size: 12px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* Modules */
-  .module-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 16px;
-    margin: 20px 0;
-  }
-  .module-card {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: var(--shadow-sm);
-  }
-  .module-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-  .module-tag {
-    font-family: "SF Mono", Menlo, Consolas, monospace;
-    font-size: 12px;
-    color: var(--accent);
-    background: var(--accent-soft);
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-weight: 500;
-  }
-  .module-card h4 {
-    font-size: 15px;
-    font-weight: 600;
-  }
-  .module-card p {
-    font-size: 13.5px;
-    color: var(--muted);
-    margin-bottom: 8px;
-  }
-  .module-card ul {
-    list-style: none;
-    padding-left: 0;
-  }
-  .module-card li {
-    font-size: 13px;
-    color: #374151;
-    padding: 3px 0 3px 16px;
-    position: relative;
-  }
-  .module-card li::before {
-    content: '▸';
-    position: absolute;
-    left: 0;
-    color: var(--accent);
-    font-weight: 700;
-  }
-
-  /* CLI section */
-  .cli-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 12px;
-    margin: 16px 0;
-  }
-  .cli-item {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 16px;
-    font-size: 13.5px;
-  }
-  .cli-item code {
-    font-family: "SF Mono", Menlo, Consolas, monospace;
-    font-size: 12.5px;
-    background: var(--code-bg);
-    padding: 2px 6px;
-    border-radius: 4px;
-    color: var(--accent-deep);
-    font-weight: 600;
-  }
-  .cli-item span {
-    display: block;
-    margin-top: 4px;
-    color: var(--muted);
-    font-size: 12.5px;
-  }
-
-  /* Validation rules */
-  .rules-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 14px;
-    margin: 16px 0;
-  }
-  .rule-group {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px 18px;
-  }
-  .rule-group h4 {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .rule-group .severity-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-  }
-  .severity-error { background: var(--error); }
-  .severity-warning { background: var(--warning); }
-  .rule-group ul { list-style: none; padding-left: 0; }
-  .rule-group li {
-    font-size: 12.5px;
-    color: #374151;
-    padding: 3px 0;
-    font-family: "SF Mono", Menlo, Consolas, monospace;
-  }
-
-  /* Data flow */
-  .dataflow {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin: 20px 0;
-    padding: 20px;
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-  }
-  .data-step {
-    background: var(--accent-soft);
-    color: var(--accent-deep);
-    padding: 8px 14px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-  .data-arrow {
-    color: var(--muted);
-    font-size: 16px;
-    font-weight: 300;
-  }
-
-  /* Footer */
-  footer {
-    margin-top: 64px;
-    padding-top: 24px;
-    border-top: 1px solid var(--border);
-    text-align: center;
-    font-size: 13px;
-    color: var(--muted);
-  }
-
-  @media (max-width: 640px) {
-    .container { padding: 24px 16px 48px; }
-    h1 { font-size: 28px; }
-    h2 { font-size: 20px; }
-  }
-</style>
-
-<script type="application/json" id="doc-meta">{"id":"architecture","title":"Cinematography IR · 架构总览","status":"draft","audience":"architects","last_updated":"2026-08-29","owners":[],"revisions":[{"date":"2026-08-26","reason":"统一阅读版式、思源宋体、左目录与插图缩放"},{"date":"2026-08-29","reason":"统一阅读版式、思源宋体、左目录与插图缩放"}]}</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cinematography IR · 架构总览</title>
+  <script>window.__docErrors=[];window.__docReady=false;window.addEventListener('error',e=>window.__docErrors.push(String(e.error||e.message||'unknown error')));window.addEventListener('unhandledrejection',e=>window.__docErrors.push(String(e.reason||'unhandled rejection')));</script>
+  <script type="application/json" id="doc-meta">{"id":"architecture","title":"Cinematography IR 架构总览","status":"draft","audience":"architects","last_updated":"2026-08-28","owners":[],"revisions":[{"date":"2026-08-28","reason":"按 code2arch 契约重建：分层总览 + 条件信号流水线 + Blender 执行时序 + 模块依赖四图，主走查「YAML 进窄腰」"}]}</script>
+  <!-- Authoring-only Narrative IR: Audience=ELI15/new-engineers; Persona=Mentor+Practitioner; Mode=ConcreteFirst; Epistemics=Confirmed; Progression=ResultFirst; Interaction=One objection (why not render directly); Texture=Conversational, restrained. No fabricated first-person experience. -->
 <style id="site-tokens">
 :root{
   --paper:#fafbfc; --surface:#ffffff; --surface-muted:#f1f4f8;
@@ -420,882 +20,855 @@
   --page-width:1280px; --toc-width:180px; --layout-gap:40px; --narrative-width:760px; --note-width:270px; --note-gap:30px; --radius:8px;
 }
 </style>
-<style data-code2arch-reading-chrome>
+  <style>
     :root {
-      --c2a-page: var(--paper);
-      --c2a-surface: var(--surface);
-      --c2a-surface-muted: var(--surface-muted);
-      --c2a-text: var(--ink);
-      --c2a-muted: var(--muted);
-      --c2a-line: var(--rule);
-      --c2a-accent: var(--accent);
-      --c2a-page-width: var(--page-width);
-      --c2a-toc-width: var(--toc-width);
-      --c2a-main-width: 1060px;
-      --c2a-narrative-width: var(--narrative-width);
-      --c2a-note-width: var(--note-width);
-      --c2a-layout-gap: var(--layout-gap);
-      --c2a-note-gap: var(--note-gap);
-      --c2a-reading: var(--font-reading);
-      --c2a-title: var(--font-title);
-      --c2a-mono: var(--font-mono);
+      --e-pen: linear(0, .028 10%, .104 20%, .216 30%, .352 40%, .5 50%, .648 60%, .784 70%, .896 80%, .972 90%, 1);
+      --e-in: cubic-bezier(.22, 1, .36, 1);
+      --e-out: cubic-bezier(.65, 0, .35, 1);
     }
-    body.c2a-refined,
-    body.c2a-refined :where(p, li, dt, dd, blockquote, figcaption, table, th, td,
-      nav, aside, footer, button, summary, label, input, select, textarea,
-      h2, h3, h4, h5, h6, svg text) {
-      font-family: var(--c2a-reading) !important;
+
+    * { box-sizing: border-box; }
+    html { background: var(--paper); color: var(--ink); }
+    body { margin: 0; font: 17px/1.8 var(--font-reading); }
+    .page { width: min(var(--page-width), calc(100% - 48px)); margin: 0 auto 96px; }
+    .layout { display: grid; grid-template-columns: var(--toc-width) minmax(0, calc(var(--narrative-width) + var(--note-width) + var(--note-gap))); gap: var(--layout-gap); align-items: start; }
+    .toc { position: sticky; top: 32px; padding-top: 76px; color: var(--muted); font: 15px/1.5 var(--font-reading); }
+    .toc strong { display: block; margin-bottom: 10px; color: var(--ink); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
+    .toc a { display: block; padding: 6px 0; color: inherit; text-decoration: none; }
+    .toc a:hover, .toc a:focus-visible { color: var(--accent); text-decoration: underline; outline: none; }
+    .content { min-width: 0; }
+    .hero { max-width: var(--narrative-width); padding: 72px 0 48px; border-bottom: 1px solid var(--rule); }
+    .eyebrow, .note-label { color: var(--accent); font: 600 13px/1.4 var(--font-reading); letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 12px 0 16px; font: 700 32px/1.2 var(--font-title); letter-spacing: -.02em; }
+    h2 { margin: 72px 0 22px; font-size: 22px; font-weight: 650; line-height: 1.25; }
+    h3 { margin: 40px 0 12px; font-size: 17px; font-weight: 600; line-height: 1.35; }
+    .lede { color: var(--muted); font-size: 22px; line-height: 1.5; }
+    a { color: var(--accent); }
+
+    section > h2, section > h3, section > p, section > ol, section > ul, section > .annotation-row,
+    section > .callout, section > .technical-note, section > figure,
+    section > .table-scroll, section > dl, blockquote {
+      width: min(var(--narrative-width), 100%);
     }
-    body.c2a-refined h1,
-    body.c2a-refined h1 * { font-family: var(--c2a-title) !important; }
-    body.c2a-refined :where(pre, code, kbd, samp),
-    body.c2a-refined :where(pre, code, kbd, samp) * {
-      font-family: var(--c2a-mono) !important;
+    /* 图卡例外：宽图可用满内容列宽（html-spec §6.3），窄文与宽图是刻意对比 */
+    section > figure.plate { width: min(calc(var(--narrative-width) + var(--note-width) + var(--note-gap)), 100%); }
+    p, li { overflow-wrap: break-word; }
+    .explain { max-width: 34em; }
+    .explain > strong:first-child { color: var(--ink); }
+
+    .note-ref { margin-left: 3px; font: 600 13px/1 var(--font-reading); vertical-align: super; white-space: nowrap; }
+    .note-ref a { display: inline-grid; width: 1.4em; height: 1.4em; place-items: center; border: 1px solid var(--accent); border-radius: 50%; color: var(--accent); text-decoration: none; }
+    .note-ref a:focus-visible, .note-ref a:hover { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .annotation-row { display: grid; grid-template-columns: minmax(0, var(--narrative-width)) var(--note-width); gap: var(--note-gap); align-items: start; width: min(calc(var(--narrative-width) + var(--note-width) + var(--note-gap)), 100%); }
+    .annotation-main { min-width: 0; }
+    .annotation-main > :first-child { margin-top: 0; }
+    .annotation-main > :last-child { margin-bottom: 0; }
+    .sidenote { width: auto; margin: 0; padding: 10px 0 10px 14px; border-left: 2px solid var(--accent); color: var(--muted); font: 13px/1.65 var(--font-reading); }
+    .sidenote .note-label { display: block; margin-bottom: 4px; }
+    .sidenote code { overflow-wrap: anywhere; font-family: var(--font-mono); }
+    .section-ref { color: var(--accent); font: 600 15px/1.5 var(--font-reading); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .18em; }
+    .section-ref:hover, .section-ref:focus-visible { color: var(--ink); outline: 2px solid var(--accent); outline-offset: 3px; }
+
+    .callout { margin: 24px 0; padding: 16px 20px; border-left: 4px solid var(--accent); border-radius: var(--radius); background: var(--accent-tint); }
+    .callout-title { margin-bottom: 4px; font-weight: 700; }
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--accent-tint); color: var(--accent-ink); font-size: 13px; line-height: 1.6; }
+
+    figure.plate { margin: 30px 0; padding: 14px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); box-shadow: 0 1px 2px rgba(23, 26, 31, .06); }
+    figure.plate.zoomable { position: relative; }
+    figure.plate .scroll { overflow-x: auto; overscroll-behavior-inline: contain; }
+    figure.plate svg, figure.plate img { display: block; width: 100%; height: auto; }
+    figcaption { min-height: 30px; margin-top: 10px; padding-right: 42px; color: var(--muted); font: 15px/1.6 var(--font-reading); }
+    .figure-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
+    .replay { padding: 4px 14px; border: 1px solid var(--accent); border-radius: 6px; background: var(--surface); color: var(--accent); font: 15px/1.6 var(--font-reading); cursor: pointer; }
+    .replay:hover { background: var(--accent-tint); }
+    .replay:focus-visible, figure.seq:focus-visible, .step:focus-visible, .node:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .step-hint { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 10px; color: var(--muted); font-size: 13px; }
+    .legend svg { width: 36px; height: 12px; margin-right: 6px; vertical-align: middle; }
+    .legend button { padding: 0 8px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); color: var(--muted); font: 13px/1.6 var(--font-reading); cursor: pointer; }
+
+    figure svg text { font: 400 12px var(--font-reading); fill: var(--muted); }
+    figure svg .node text, figure svg .actor text { font: 600 14px var(--font-reading); fill: var(--ink); }
+    figure svg .sub { font: 400 12px var(--font-mono); fill: var(--muted); }
+    figure svg .node rect, figure svg .actor rect { fill: var(--accent-tint); stroke: var(--accent); stroke-width: 1.5; }
+    figure svg .node.focal .inner { fill: none; stroke: var(--accent); stroke-width: 1; }
+    figure svg .node.external rect { fill: var(--external); stroke: var(--muted); }
+    figure svg .node.store rect, figure svg .node.role circle { fill: var(--surface); stroke: var(--muted); stroke-width: 1.5; }
+    figure svg .node.store line { stroke: var(--muted); stroke-width: 1; }
+    figure svg .boundary { fill: none; stroke: var(--muted); stroke-dasharray: 4 4; }
+    figure svg .edge { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+    figure svg .edge.async { stroke-dasharray: 6 4; }
+    figure svg .edge.inferred { stroke-dasharray: 2 3; }
+    figure svg .lifeline { stroke: var(--rule); stroke-width: 1; }
+    figure svg .frag { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+    figure svg .frag-tab { fill: var(--surface-muted); stroke: var(--rule-strong); stroke-width: 1; }
+    figure svg .frag-text { font: 600 12px var(--font-mono); fill: var(--muted); }
+    figure svg .frag-div { stroke: var(--rule); stroke-width: 1; }
+    figure svg .arr path { fill: var(--muted); }
+    figure svg .arr.lit path { fill: var(--accent); }
+    figure svg [data-node], figure svg [data-explains], figure svg .step { cursor: pointer; }
+
+    figure.anim .node { transition: opacity .5s var(--e-in); transition-delay: calc(var(--i, 0) * 120ms); }
+    html.motion-ready figure.anim:not(.in-view) .node { opacity: 0; }
+    figure.anim path.edge.draw { transition: stroke-dashoffset .8s var(--e-pen) calc(var(--i, 0) * 120ms + 340ms); }
+
+    figure.anim.hl .node, figure.anim.hl .edge { transition: opacity .12s; }
+    figure.anim.hl .node.dim, figure.anim.hl .edge.dim { opacity: .5; }
+    figure.anim .edge.hl { stroke: var(--accent); }
+    #fig-layers .edge.hl, #fig-pipeline .edge.hl, #fig-modules .edge.hl { marker-end: url(#fig-layers-arr-lit); }
+    figure.anim [data-node]:hover rect, figure.anim [data-node]:focus-visible rect,
+    figure.anim [data-node]:hover circle, figure.anim [data-node]:focus-visible circle { stroke: var(--accent-lit); }
+
+    .motion-ready .step { opacity: .3; transition: opacity .35s ease; }
+    .step .edge { transition: stroke .35s ease, stroke-width .2s ease; }
+    .step .label { fill: var(--surface); stroke: var(--rule); transition: fill .35s ease, stroke .35s ease; }
+    .step text { transition: fill .35s ease; }
+    .step.done { opacity: .6; }
+    .step.cur { opacity: 1; }
+    .step.done .edge, .step.cur .edge { stroke: var(--accent); }
+    #fig-blender .step.done .edge, #fig-blender .step.cur .edge { marker-end: url(#fig-blender-arr-lit); }
+    .step.done .label, .step.cur .label { fill: var(--accent-tint); stroke: var(--accent); }
+    .step.done text, .step.cur text { fill: var(--accent-ink); }
+    .step.cur .edge { stroke-width: 2.5; }
+    .step.cur text { font-weight: 600; }
+    .step.focus .edge { stroke-width: 2.5; }
+    figure.seq.ended .step { opacity: 1; }
+
+    .flow-dot { fill: var(--accent); pointer-events: none; }
+    figure .lineage-lane { fill: none; stroke-width: var(--lane-width, 4px); stroke-linecap: round; stroke-linejoin: round; transition: opacity .16s, stroke-width .16s; }
+    figure [data-lineage].dim { opacity: .16; }
+    figure .lineage-lane.is-active { stroke-width: calc(var(--lane-width, 4px) + 1.5px); }
+
+    .flash { background: var(--accent-tint); outline: 2px solid var(--accent); outline-offset: 6px; transition: background .3s ease; }
+
+    .figure-zoom-trigger { position: absolute; right: 15px; bottom: 14px; width: 30px; height: 30px; padding: 0; border: 1px solid var(--rule-strong); border-radius: 50%; background: var(--surface); color: var(--accent); font-family: var(--font-reading); cursor: zoom-in; }
+    .figure-zoom-trigger::before { content: ""; position: absolute; left: 8px; top: 7px; width: 9px; height: 9px; border: 1.5px solid currentColor; border-radius: 50%; }
+    .figure-zoom-trigger::after { content: ""; position: absolute; left: 17px; top: 17px; width: 7px; height: 1.5px; background: currentColor; transform: rotate(45deg); transform-origin: left center; }
+    .figure-zoom-trigger:hover { border-color: var(--accent); background: var(--surface-muted); }
+    .figure-zoom-trigger:focus-visible, .figure-lightbox button:focus-visible, .zoom-viewport:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .zoom-placeholder { width: 100%; background: var(--surface-muted); border-radius: 4px; }
+    .figure-lightbox { width: min(96vw, 1600px); height: min(94vh, 1200px); max-width: none; max-height: none; padding: 0; overflow: hidden; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); color: var(--ink); }
+    .figure-lightbox::backdrop { background: rgba(23, 26, 31, .72); }
+    .figure-lightbox[open] { display: block; }
+    .zoom-shell { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+    .zoom-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 52px; padding: 8px 12px 8px 18px; border-bottom: 1px solid var(--rule); background: var(--surface); font: 13px/1.4 var(--font-reading); }
+    .zoom-caption { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+    .zoom-controls { display: flex; align-items: center; gap: 6px; flex: none; }
+    .zoom-controls button { min-width: 34px; height: 34px; padding: 0 9px; border: 1px solid var(--rule); border-radius: 7px; background: var(--surface); color: var(--ink); font: 600 13px/1 var(--font-reading); cursor: pointer; }
+    .zoom-controls button:hover { border-color: var(--accent); color: var(--accent); background: var(--surface-muted); }
+    .zoom-controls .zoom-close { margin-left: 6px; font-size: 17px; }
+    .zoom-viewport { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--surface-muted); }
+    .zoom-stage { display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 24px; }
+    .zoom-stage > svg, .zoom-stage > img { display: block; flex: none; max-width: none !important; height: auto; background: var(--surface); border: 1px solid var(--rule); }
+    .zoom-stage .step, .zoom-stage .node { opacity: 1; }
+    body.figure-zoom-open { overflow: hidden; }
+
+    /* 领域 ADT 卡（figure.formal-model）：可见层是排版好的等价文本，data-latex 存作者侧源 */
+    figure.formal-model { margin: 30px 0; padding: 18px 22px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface-muted); }
+    figure.formal-model figcaption { margin-top: 12px; }
+    .adt { font: 17px/2 var(--font-reading); }
+    .adt .def { margin: 6px 0; }
+    .adt .ty { font: 600 15px var(--font-mono); color: var(--ink); }
+    .adt .op { padding: 0 6px; color: var(--accent-ink); font-family: var(--font-mono); font-size: 15px; }
+    .adt .ctor { font: 400 15px var(--font-mono); color: var(--muted); }
+    .adt .zh { color: var(--muted); font-size: 15px; }
+
+    dl.stack { display: grid; grid-template-columns: 8em 1fr; gap: 8px 18px; margin: 24px 0; font-size: 15px; }
+    dl.stack dt { color: var(--accent-ink); font-weight: 600; }
+    dl.stack dd { margin: 0; color: var(--muted); }
+
+    .technical-note { margin: 24px 0; overflow: hidden; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface-muted); }
+    .technical-note summary { cursor: pointer; padding: 10px 14px; color: var(--accent); font: 600 13px/1.4 var(--font-reading); letter-spacing: .06em; }
+    .technical-note pre { margin: 0; padding: 14px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.55 var(--font-mono); }
+    .table-scroll { overflow-x: auto; overscroll-behavior-inline: contain; }
+    table { width: 100%; min-width: 620px; border-collapse: collapse; font: 15px/1.6 var(--font-reading); }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+    th { color: var(--accent); }
+    footer.footnotes { width: min(var(--narrative-width), 100%); margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--rule); color: var(--muted); font: 15px/1.6 var(--font-reading); }
+    footer.footnotes ol { padding-left: 22px; }
+    footer.pagefoot { width: min(calc(var(--narrative-width) + var(--note-width) + var(--note-gap)), 100%); margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 13px; line-height: 1.7; }
+
+    html[data-motion="static"] * { transition: none !important; animation: none !important; }
+    html[data-motion="static"] .flow-dot, html[data-motion="static"] .replay { display: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      figure.anim .node, figure.anim .edge { opacity: 1; transition: none; }
+      figure.anim path.edge { stroke-dashoffset: 0 !important; transition: none; }
+      .flow-dot { display: none; }
+      figure.seq:not([data-frame="step"]) .step { opacity: 1 }
+      .step, .step .edge, .step .label, .step text, .flash { transition: none; }
     }
-    .c2a-page-shell {
-      display: grid;
-      grid-template-columns: var(--c2a-toc-width) minmax(0, var(--c2a-main-width));
-      gap: var(--c2a-layout-gap);
-      align-items: start;
-      width: min(var(--c2a-page-width), calc(100% - 48px));
-      margin: 0 auto;
-    }
-    .c2a-page-toc {
-      position: sticky;
-      top: 32px;
-      max-height: calc(100vh - 64px);
-      padding-top: 72px;
-      overflow: auto;
-      color: var(--c2a-muted);
-      font: 12px/1.55 var(--c2a-reading);
-    }
-    .c2a-page-toc strong {
-      display: block;
-      margin-bottom: 10px;
-      color: var(--c2a-accent);
-      font-size: 10px;
-      letter-spacing: .12em;
-    }
-    .c2a-page-toc a {
-      display: block;
-      width: fit-content;
-      margin-bottom: 8px;
-      color: inherit;
-      text-decoration: none;
-    }
-    .c2a-page-toc a:hover,
-    .c2a-page-toc a:focus-visible { color: var(--c2a-accent); text-decoration: underline; }
-    .c2a-document { min-width: 0; }
-    .c2a-document > :where(main, .container, .page, .wrap) {
-      box-sizing: border-box;
-      width: 100% !important;
-      max-width: var(--c2a-main-width) !important;
-      margin-inline: 0 !important;
-    }
-    .c2a-document :where(p, ul, ol, dl, blockquote, details, .callout, .technical-note) {
-      max-width: var(--c2a-narrative-width);
-    }
-    .c2a-document :where(figure, .diagram-wrap, .diagram-container, .diagram-card) {
-      box-sizing: border-box;
-      width: min(var(--c2a-narrative-width), 100%) !important;
-      max-width: var(--c2a-narrative-width) !important;
-      overflow-x: auto;
-    }
-    .c2a-document :where(.table-scroll, .table-wrap) {
-      box-sizing: border-box;
-      width: min(var(--c2a-narrative-width), 100%);
-      overflow-x: auto;
-    }
-    .c2a-document :where(nav.toc, nav.page-toc) { display: none !important; }
-    .c2a-document .c2a-had-own-toc {
-      display: block !important;
-      grid-template-columns: none !important;
-      width: 100% !important;
-      max-width: var(--c2a-main-width) !important;
-    }
-    .c2a-document :where(.annotation-row, .annotation-block) {
-      display: grid !important;
-      grid-template-columns: minmax(0, var(--c2a-narrative-width)) var(--c2a-note-width) !important;
-      gap: var(--c2a-note-gap) !important;
-      align-items: start;
-      box-sizing: border-box;
-      width: min(var(--c2a-main-width), 100%) !important;
-      max-width: 100% !important;
-    }
-    .c2a-document .sidenote {
-      float: none !important;
-      clear: none !important;
-      box-sizing: border-box;
-      width: auto !important;
-      margin: 0 !important;
-      padding: 10px 0 10px 14px !important;
-      border-left: 2px solid var(--c2a-accent);
-      color: var(--c2a-muted);
-      font: 11px/1.65 var(--c2a-reading) !important;
-      overflow-wrap: anywhere;
-    }
-    .c2a-zoomable { position: relative !important; }
-    .c2a-figure-zoom {
-      position: absolute;
-      right: 15px;
-      bottom: 14px;
-      z-index: 3;
-      width: 30px;
-      height: 30px;
-      padding: 0;
-      border: 1px solid color-mix(in srgb, var(--c2a-accent) 45%, var(--c2a-line));
-      border-radius: 50%;
-      background: var(--c2a-surface);
-      color: var(--c2a-accent);
-      cursor: zoom-in;
-    }
-    .c2a-figure-zoom::before {
-      content: "";
-      position: absolute;
-      left: 8px;
-      top: 7px;
-      width: 9px;
-      height: 9px;
-      border: 1.5px solid currentColor;
-      border-radius: 50%;
-    }
-    .c2a-figure-zoom::after {
-      content: "";
-      position: absolute;
-      left: 17px;
-      top: 17px;
-      width: 7px;
-      height: 1.5px;
-      background: currentColor;
-      transform: rotate(45deg);
-      transform-origin: left center;
-    }
-    .c2a-figure-zoom:hover { background: var(--c2a-surface-muted); }
-    .c2a-figure-zoom:focus-visible,
-    .c2a-figure-viewer button:focus-visible,
-    .c2a-zoom-viewport:focus-visible { outline: 2px solid var(--c2a-accent); outline-offset: 3px; }
-    .c2a-zoom-placeholder { width: 100%; background: var(--c2a-surface-muted); border-radius: 4px; }
-    .c2a-figure-viewer {
-      width: min(96vw, 1600px);
-      height: min(94vh, 1200px);
-      max-width: none;
-      max-height: none;
-      padding: 0;
-      overflow: hidden;
-      border: 1px solid var(--c2a-line);
-      border-radius: 12px;
-      background: var(--c2a-surface);
-      color: var(--c2a-text);
-    }
-    .c2a-figure-viewer::backdrop { background: rgba(23,26,31,.72); backdrop-filter: blur(3px); }
-    .c2a-figure-viewer[open] { display: block; }
-    .c2a-zoom-shell { display: grid; grid-template-rows: auto minmax(0,1fr); height: 100%; }
-    .c2a-zoom-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      min-height: 52px;
-      padding: 8px 12px 8px 18px;
-      border-bottom: 1px solid var(--c2a-line);
-      background: var(--c2a-surface);
-      font: 12px/1.4 var(--c2a-reading);
-    }
-    .c2a-zoom-caption { min-width: 0; overflow: hidden; color: var(--c2a-muted); text-overflow: ellipsis; white-space: nowrap; }
-    .c2a-zoom-controls { display: flex; align-items: center; flex: none; gap: 6px; }
-    .c2a-zoom-controls button {
-      min-width: 34px;
-      height: 34px;
-      padding: 0 9px;
-      border: 1px solid var(--c2a-line);
-      border-radius: 7px;
-      background: var(--c2a-surface);
-      color: var(--c2a-text);
-      font: 600 13px/1 var(--c2a-reading);
-      cursor: pointer;
-    }
-    .c2a-zoom-controls button:hover { border-color: var(--c2a-accent); color: var(--c2a-accent); background: var(--c2a-surface-muted); }
-    .c2a-zoom-controls .c2a-zoom-close { margin-left: 6px; font-size: 18px; }
-    .c2a-zoom-viewport { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--c2a-surface-muted); }
-    .c2a-zoom-stage { display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 24px; }
-    .c2a-zoom-stage > :where(svg, img) {
-      display: block;
-      flex: none;
-      max-width: none !important;
-      min-width: 0 !important;
-      height: auto;
-      background: var(--c2a-surface);
-      border: 1px solid var(--c2a-line);
-    }
-    body.c2a-zoom-open { overflow: hidden; }
     @media (max-width: 1320px) {
-      .c2a-page-shell { display: block; }
-      .c2a-page-toc { position: static; max-width: var(--c2a-narrative-width); padding: 24px 0 0; }
-      .c2a-page-toc a { display: inline-block; margin-right: 16px; }
+      .layout { display: block; }
+      .toc { position: static; max-width: var(--narrative-width); padding: 24px 0 0; }
+      .toc a { display: inline-block; margin-right: 16px; }
     }
     @media (max-width: 960px) {
-      .c2a-page-shell { width: min(100% - 32px, var(--c2a-page-width)); }
-      .c2a-document :where(.annotation-row, .annotation-block) { display: block !important; width: auto !important; }
-      .c2a-document .sidenote {
-        width: auto !important;
-        margin: 18px 0 !important;
-        padding: 10px 14px !important;
-        border: 1px solid var(--c2a-line);
-        border-left: 3px solid var(--c2a-accent);
-        background: var(--c2a-surface-muted);
-        font-size: 12px !important;
-      }
+      .page { width: min(100% - 32px, var(--page-width)); }
+      .annotation-row { display: block; width: auto; }
+      .sidenote { width: auto; margin: 18px 0; padding: 10px 14px; border: 1px solid var(--rule); border-left: 3px solid var(--accent); background: var(--surface-muted); font-size: 13px; }
     }
-    @media (max-width: 600px) {
-      .c2a-page-toc { display: none; }
-      .c2a-figure-viewer { width: 100vw; height: 100dvh; border: 0; border-radius: 0; }
-      .c2a-zoom-toolbar { gap: 8px; padding-left: 12px; }
-      .c2a-zoom-caption { max-width: 72px; }
-      .c2a-zoom-controls { gap: 4px; }
-      .c2a-zoom-controls button { min-width: 32px; height: 32px; padding: 0 7px; }
-      .c2a-zoom-stage { padding: 16px; }
-    }
+    @media (max-width: 600px) { .figure-lightbox { width: 100vw; height: 100dvh; border: 0; border-radius: 0; } .zoom-toolbar { gap: 8px; padding-left: 12px; } .zoom-caption { max-width: 72px; } .zoom-controls { gap: 4px; } .zoom-controls button { min-width: 32px; height: 32px; padding: 0 7px; } .zoom-stage { padding: 16px; } }
     @media print {
-      .c2a-page-shell { display: block; width: auto; }
-      .c2a-page-toc, .c2a-figure-zoom, .c2a-figure-viewer { display: none !important; }
-      .c2a-document :where(.annotation-row, .annotation-block) { display: block !important; width: auto !important; }
-      .c2a-document .sidenote { width: auto !important; margin: 12px 0 !important; break-inside: avoid; }
+      .page { width: auto; margin: 0; }
+      .layout { display: block; }
+      .toc { display: none; }
+      .sidenote { width: auto; margin: 12px 0; break-inside: avoid; }
+      figure, .callout, .technical-note { break-inside: avoid; }
+      figure.anim .node, figure.anim .edge { opacity: 1 !important; transition: none !important; }
+      figure.anim path.edge { stroke-dashoffset: 0 !important; }
+      .flow-dot, .replay, .figure-zoom-trigger, .figure-lightbox { display: none !important; }
+      figure.seq .step { opacity: 1 !important; }
     }
   </style>
 </head>
 <body>
-<div class="container">
+  <main class="page"><div class="layout">
+    <nav class="toc" aria-label="页面目录"><strong>目录</strong><a href="#product">产品介绍</a><a href="#features">功能与特性</a><a href="#overview">分层与主走查</a><a href="#compiled">窄腰里有什么</a><a href="#pipeline">条件信号流水线</a><a href="#execute">Blender 执行链</a><a href="#modules">模块依赖</a><a href="#tradeoffs">取舍与边界</a></nav>
+    <div class="content"><header class="hero">
+      <div class="eyebrow">镜头语言编译器 · 架构总览</div>
+      <h1>Cinematography IR</h1>
+      <p class="lede">把「这个镜头怎么拍」写成一份可验证的 YAML：系统先证明这份镜头语言在几何与连续性上站得住，再把它编译成视频生成模型需要的文本、参考图、数值控制三类条件信号。</p>
+      <p><span class="badge">2026-08-28</span> <span class="badge">commit 5d8e6b2</span> <span class="badge">draft</span></p>
+    </header>
 
-  <header class="hero">
-    <div class="badge">RUST · YAML/JSON · CINEMATOGRAPHY IR</div>
-    <h1>Cinematography IR</h1>
-    <p class="subtitle">面向电影摄影规划、自动分镜、虚拟制片与 Agent 编排的<strong>分层中间表示</strong>。保存意图、空间、约束与执行参数，而非把美学简化为公式。</p>
-  </header>
-
-  <h2>产品定位</h2>
-  <p class="lead">
-    Cinematography IR（<code>cinematography-ir</code>）是一套用 Rust 实现的电影摄影中间表示与静态分析工具链。
-    它不做物理渲染，也不做几何求解——而是把<strong>戏剧意图、场面调度、镜头设计、相机程序、连续性约束</strong>五层信息结构化，
-    供人工与 Agent 审查、修改、编译和比较镜头方案。
-  </p>
-  <p>
-    项目同时提供完整的<strong>中文 mdBook 摄影教材</strong>（14 章：从成像原理、景别构图到连续性分析与 IR 架构），
-    以及 <code>cine-ir</code> 命令行工具，用于验证、分析、检视、归一化和 Schema 生成。
-  </p>
-
-  <div class="features">
-    <div class="feature-card">
-      <div class="feature-icon" style="background:#dbeafe;color:#1d4ed8;">IR</div>
-      <h4>分层 IR 数据模型</h4>
-      <p>从叙事意图到相机参数的六层结构，保留"为什么这样拍"的语义，不丢失高层意图。</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon" style="background:#dcfce7;color:#15803d;">✓</div>
-      <h4>结构与语义验证</h4>
-      <p>40+ 条诊断规则：ID 唯一性、引用完整性、数值合法性、时间线重叠、运镜越界等。</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon" style="background:#fef3c7;color:#a16207;">↔</div>
-      <h4>连续性分析</h4>
-      <p>180° 轴线、银幕方向、互反视线、30° 小角度切换——可声明例外桥接，非艺术禁令。</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon" style="background:#fce7f3;color:#be185d;">📘</div>
-      <h4>中文摄影教材</h4>
-      <p>14 章 mdBook + 单文件版，覆盖景别、构图、运镜、灯光、Coverage 与视觉叙事。</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon" style="background:#ede9fe;color:#6d28d9;">⚙</div>
-      <h4>cine-ir CLI</h4>
-      <p>validate / analyze / inspect / normalize / schema 五个子命令，支持 JSON 机器可读输出。</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon" style="background:#ffedd5;color:#c2410c;">🔌</div>
-      <h4>Backend 边界清晰</h4>
-      <p>核心 IR 与 compiler/solver/backend 解耦，预留 Blender、Unreal、Three.js、USD 适配接口。</p>
-    </div>
-  </div>
-
-  <h2>分层架构图</h2>
-  <p class="lead">六层自顶向下：高层语义逐步编译为低层相机参数，每层均可独立审查与交换。</p>
-
-  <div class="arch-diagram" id="archDiagram">
-    <svg viewBox="0 0 780 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cinematography IR 六层架构图">
-      <defs>
-        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#dbeafe;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#bfdbfe;stop-opacity:1" />
-        </linearGradient>
-        <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#dcfce7;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#bbf7d0;stop-opacity:1" />
-        </linearGradient>
-        <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#fef3c7;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#fde68a;stop-opacity:1" />
-        </linearGradient>
-        <linearGradient id="grad4" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#fce7f3;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#fbcfe8;stop-opacity:1" />
-        </linearGradient>
-        <linearGradient id="grad5" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#ede9fe;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#ddd6fe;stop-opacity:1" />
-        </linearGradient>
-        <linearGradient id="grad6" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#ffedd5;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#fed7aa;stop-opacity:1" />
-        </linearGradient>
-        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-          <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
-        </marker>
-      </defs>
-
-      <!-- Layer 1: Narrative Intent -->
-      <g class="layer-box" onclick="highlightLayer(0)">
-        <rect x="40" y="20" width="700" height="65" rx="10" fill="url(#grad1)" stroke="#93c5fd" stroke-width="1.5"/>
-        <text x="60" y="48" font-size="15" font-weight="700" fill="#1e40af">① 叙事意图层 · Narrative Intent</text>
-        <text x="60" y="70" font-size="12.5" fill="#1e3a8a">戏剧问题 · 情绪节拍 · 主题 · 观众状态 · Emotion Arc (valence/arousal)</text>
-      </g>
-
-      <!-- Arrow 1 -->
-      <g class="flow-arrow" id="arrow1">
-        <line x1="390" y1="85" x2="390" y2="103" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-      </g>
-
-      <!-- Layer 2: Staging & Blocking -->
-      <g class="layer-box" onclick="highlightLayer(1)">
-        <rect x="40" y="108" width="700" height="65" rx="10" fill="url(#grad2)" stroke="#86efac" stroke-width="1.5"/>
-        <text x="60" y="136" font-size="15" font-weight="700" fill="#166534">② 场面调度层 · Staging &amp; Blocking</text>
-        <text x="60" y="158" font-size="12.5" fill="#14532d">人物/道具 · 空间标记 · 视线目标 · 动作轨迹 · 灯光布置 · Beat 节拍</text>
-      </g>
-
-      <!-- Arrow 2 -->
-      <g class="flow-arrow" id="arrow2">
-        <line x1="390" y1="173" x2="390" y2="191" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-      </g>
-
-      <!-- Layer 3: Shot Design -->
-      <g class="layer-box" onclick="highlightLayer(2)">
-        <rect x="40" y="196" width="700" height="65" rx="10" fill="url(#grad3)" stroke="#fcd34d" stroke-width="1.5"/>
-        <text x="60" y="224" font-size="15" font-weight="700" fill="#a16207">③ 镜头设计层 · Shot Design</text>
-        <text x="60" y="246" font-size="12.5" fill="#854d0e">景别 · 机位角度 · 构图策略 · Coverage 角色 · 叙事目的 · 深度分层</text>
-      </g>
-
-      <!-- Arrow 3 -->
-      <g class="flow-arrow" id="arrow3">
-        <line x1="390" y1="261" x2="390" y2="279" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-      </g>
-
-      <!-- Layer 4: Camera Program -->
-      <g class="layer-box" onclick="highlightLayer(3)">
-        <rect x="40" y="284" width="700" height="65" rx="10" fill="url(#grad4)" stroke="#f9a8d4" stroke-width="1.5"/>
-        <text x="60" y="312" font-size="15" font-weight="700" fill="#be185d">④ 相机程序层 · Camera Program</text>
-        <text x="60" y="334" font-size="12.5" fill="#9d174d">位姿 · 焦距/光圈 · 对焦 · 曝光 · 18 种运镜操作 · 缓动曲线 · 灯光引用</text>
-      </g>
-
-      <!-- Arrow 4 -->
-      <g class="flow-arrow" id="arrow4">
-        <line x1="390" y1="349" x2="390" y2="367" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-      </g>
-
-      <!-- Layer 5: Continuity Constraints -->
-      <g class="layer-box" onclick="highlightLayer(4)">
-        <rect x="40" y="372" width="700" height="65" rx="10" fill="url(#grad5)" stroke="#c4b5fd" stroke-width="1.5"/>
-        <text x="60" y="400" font-size="15" font-weight="700" fill="#6d28d9">⑤ 连续性约束层 · Continuity Constraints</text>
-        <text x="60" y="422" font-size="12.5" fill="#5b21b6">180° 轴线侧 · 银幕方向 · 互反视线 · 30° 规则 · 桥接例外 · 空间重置</text>
-      </g>
-
-      <!-- Arrow 5 -->
-      <g class="flow-arrow" id="arrow5">
-        <line x1="390" y1="437" x2="390" y2="455" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-      </g>
-
-      <!-- Layer 6: Backend / Renderer -->
-      <g class="layer-box" onclick="highlightLayer(5)">
-        <rect x="40" y="460" width="700" height="50" rx="10" fill="url(#grad6)" stroke="#fdba74" stroke-width="1.5"/>
-        <text x="60" y="490" font-size="15" font-weight="700" fill="#c2410c">⑥ 渲染适配层 · Renderer / DCC / Virtual Production Adapter</text>
-      </g>
-
-      <!-- Side label: IR Core -->
-      <g>
-        <rect x="740" y="110" width="32" height="330" rx="6" fill="#2563eb" opacity="0.1"/>
-        <text x="756" y="275" font-size="12" font-weight="600" fill="#2563eb" transform="rotate(90 756 275)" text-anchor="middle">IR CORE · 模型 + 验证 + 分析</text>
-      </g>
-    </svg>
-  </div>
-
-  <h2>主走查：一个 YAML 如何被处理</h2>
-  <p class="lead">以 <code>examples/dialogue.yaml</code>（审讯室三镜头对话）为例，走查完整处理链路。</p>
-
-  <div class="dataflow">
-    <div class="data-step">YAML / JSON 输入</div>
-    <span class="data-arrow">→</span>
-    <div class="data-step">io::load_project</div>
-    <span class="data-arrow">→</span>
-    <div class="data-step">serde 反序列化</div>
-    <span class="data-arrow">→</span>
-    <div class="data-step">CineProject 模型</div>
-    <span class="data-arrow">→</span>
-    <div class="data-step">validate_project</div>
-    <span class="data-arrow">→</span>
-    <div class="data-step">analyze_continuity</div>
-    <span class="data-arrow">→</span>
-    <div class="data-step">ValidationReport</div>
-  </div>
-
-  <div class="walkthrough">
-    <h3>验证与分析步骤</h3>
-    <ol>
-      <li><strong>加载与反序列化：</strong><code>io::load_project</code> 依据扩展名选择 YAML/JSON 解析器，<code>deny_unknown_fields</code> 拒绝拼写错误（如 <code>focal_lenght_mm</code>）。</li>
-      <li><strong>项目级校验：</strong>检查 <code>schema_version</code>、项目 ID 非空、帧率合法、至少一个场景、场景 ID 唯一。</li>
-      <li><strong>场景级校验：</strong>遍历 subjects / markers / axes / beats / lighting_setups，校验 ID 唯一、引用存在、数值有限、关键帧严格递增。</li>
-      <li><strong>镜头时间线校验：</strong>按 start 排序后检查重叠（error）与间隙（warning），首帧是否从 0 开始，尾帧是否覆盖场景时长。</li>
-      <li><strong>单镜头校验：</strong>景别、构图、相机状态（镜头/对焦/曝光）、运镜操作范围（镜头局部半开区间）、连续性注解引用。</li>
-      <li><strong>连续性分析：</strong>相邻镜头对检查 180° 轴线翻转、银幕方向反转、30° 小角度切换、互反视线同向——若声明 bridge / spatial_reset / jump_cut 则豁免。</li>
-      <li><strong>诊断输出：</strong>文本或 JSON 格式，含错误码、路径、消息与修复 hint；<code>--deny-warnings</code> 可将 warning 提升为非零退出码。</li>
-    </ol>
-  </div>
-
-  <h2>模块说明</h2>
-
-  <div class="module-grid">
-    <div class="module-card">
-      <div class="module-header">
-        <span class="module-tag">src/model.rs</span>
-        <h4>数据模型</h4>
+    <section id="product">
+      <h2>01 · 它是一个编译器，不是渲染器</h2>
+      <p>Cinematography IR（命令行工具 <code>cine-ir</code>）把电影摄影的镜头语言编译成视频生成模型的输入。作者在 YAML 里写场景、人物走位、运镜和连续性注记；验证器拦下自相矛盾的部分，求解器把「推轨 + 变焦」这类语义命令展开成逐帧相机轨迹；最后所有信息收敛成一份编译产物，供四条下游分别读出文本命令、审片图、Blender 白模多通道视频和验收报告。</p>
+      <div class="annotation-row">
+      <div class="annotation-main"><p>
+          它服务三类人：写分镜与运镜的创作者（用 YAML 和审片图检查自己的镜头设计）、搭视频生成管线的工程师（拿条件信号喂模型、拿约束做验收）、以及编排拍摄的 Agent（IR 保存的是意图、空间、约束与例外，机器可以审查和修改）。核心价值一句话：<strong>镜头语言从此可验证、可比较、可再生成</strong>——「大白鲨」那个著名的反向推轨变焦镜头，在这个仓库里是一份 8 秒的 YAML，过一遍编译就能量化判定主体尺度是否稳定。<sup class="note-ref"><a href="#note-1" role="doc-noteref" aria-describedby="note-1" aria-label="查看旁注 1">1</a></sup>
+      </p></div>
+      <aside class="sidenote" id="note-1" role="note"><span class="note-label">01 · 换个视角</span>「窄腰」借自编译器的中间表示：LLVM 不让每个前端直连每个后端，中间放一层共同语言。这里的编译产物就是那层。它不是格式转换器——转换不保留「为什么这个镜头存在」。</aside>
       </div>
-      <p>~880 行，核心 IR 类型定义。<code>CineProject</code> 为根，向下包含 Scene、Shot、CameraPlan、ContinuityAnnotations 等。</p>
-      <ul>
-        <li><code>CineProject</code> / <code>Scene</code> / <code>Shot</code> 三层容器</li>
-        <li><code>NarrativeIntent</code>：戏剧问题 + 情绪弧</li>
-        <li><code>Subject</code> / <code>Marker</code> / <code>BlockingTrack</code></li>
-        <li><code>Framing</code> + <code>Composition</code>（9 种构图策略）</li>
-        <li><code>CameraOperation</code>（18 种运镜枚举）</li>
-        <li><code>LightingSetup</code> + <code>LightSource</code>（8 种光源角色）</li>
-        <li><code>TargetRef</code>：Subject / Marker / Point 三态</li>
-      </ul>
-    </div>
-
-    <div class="module-card">
-      <div class="module-header">
-        <span class="module-tag">src/validate.rs</span>
-        <h4>结构验证</h4>
+      <p>与替代方案的差异在两个方向上：向上，它不假装是成片渲染器——Blender 只渲染可区分的黏土白模和条件通道，不追求画面好看；向下，它不把摄影美学压成公式——越轴可以显式声明为故意，验证给的是诊断启发式，不是艺术禁令。</p>
+      <div class="callout">
+        <div class="callout-title">容易混淆的边界</div>
+        这个系统既不生成视频，也不渲染最终画面。它生成的是「喂给视频模型的条件」和「验收生成结果的尺子」；画面本身由外部模型产生。
       </div>
-      <p>~990 行，结构性与语义性验证。返回 <code>ValidationReport</code>，区分 error 与 warning。</p>
+      <dl class="stack">
+        <dt>语言与构建</dt><dd>Rust 2021，单二进制 CLI；serde 处理 YAML / JSON，schemars 导出 JSON Schema，resvg 支撑内置 PNG 编码。</dd>
+        <dt>外部运行时</dt><dd>仅执行环节需要 Blender（5.2 LTS 实机验证过）；无 Blender 的 CI 用桩脚本走完同一控制流。</dd>
+        <dt>形态</dt><dd>无服务、无数据库：纯库 + CLI，一份 YAML 从进到出都是本地文件。</dd>
+        <dt>配套</dt><dd>仓库自带 15 章中文摄影教材（mdBook）与 7 个可运行的镜头示例。</dd>
+      </dl>
+    </section>
+
+    <section id="features">
+      <h2>02 · 功能与特性</h2>
       <ul>
-        <li>ID 唯一性（场景/人物/标记/轴线/镜头/灯光）</li>
-        <li>引用完整性（subject/marker/axis/lighting）</li>
-        <li>数值合法性（有限、正、归一化、快门角 ≤360°）</li>
-        <li>时间线有效性（半开区间、运镜不越出镜头）</li>
-        <li>编辑时间线（重叠=错误、间隙=警告）</li>
-        <li>运镜操作参数校验（18 种逐分支）</li>
+        <li><strong>分层语义 IR</strong>——叙事意图、场面调度、镜头设计、相机程序、连续性注记写进同一份 YAML，高层「为什么」与低层「每帧参数」同时保留。写分镜时用。</li>
+        <li><strong>结构与语义验证</strong>——空 ID、悬空引用、非法帧区间、未知字段直接报错；打错字段名会在加载时失败，不会静默用默认值。写完先跑一遍。</li>
+        <li><strong>连续性分析</strong>——180° 轴线翻转、银幕方向突变、互反视线同向、30° 以内的相似切换，都给 warning；例外用 bridge 一类的显式注记表达。</li>
+        <li><strong>运镜求解</strong>——18 种运镜（推轨、摇移、跟拍、升降、反向变焦……）编译成逐帧相机轨迹；draft 档确定性运动学，full 档追加云台限速与代理碰撞。</li>
+        <li><strong>编译窄腰</strong>——一次编译产出 Compiled Guidance IR：意图、阶段、世界与屏幕双空间轨道、19 种可观察约束、自动派生的禁止条件。所有下游共用这一份。</li>
+        <li><strong>文本 prompt 方言</strong>——IR 枚举经方言表映射成摄影词汇；主体「颜色进图、名字进 prompt」，身份绑定量化。</li>
+        <li><strong>审片视图</strong>——同一份画布出 SVG / PNG / ASCII / HTML / Markdown 六种编码、六种阅读意图（分镜板、运动语法、连续性、干净控制图……），ASCII 也能看同一张图。</li>
+        <li><strong>Blender 白模执行</strong>——一次导出 10 个条件通道（深度、法线、ID、光流、骨架姿态……），原子发布 manifest，失败保留现场。</li>
+        <li><strong>闭环验收</strong>——compare 同时测世界轨迹与观众可见的屏幕结果，按逐条约束给 PASS / FAIL / INDETERMINATE，不给一个笼统的 RMSE。</li>
       </ul>
-    </div>
+    </section>
 
-    <div class="module-card">
-      <div class="module-header">
-        <span class="module-tag">src/analyze.rs</span>
-        <h4>连续性分析</h4>
-      </div>
-      <p>~215 行，跨镜头连续性启发式检查。4 条规则 + 例外桥接机制。</p>
-      <ul>
-        <li><code>CONTINUITY_AXIS_CROSS</code>：轴线侧翻转</li>
-        <li><code>CONTINUITY_SCREEN_DIRECTION_FLIP</code>：银幕方向反转</li>
-        <li><code>CONTINUITY_SMALL_ANGLE_CUT</code>：<30° 同景别切换</li>
-        <li><code>CONTINUITY_EYELINE_MISMATCH</code>：互反视线同向</li>
-        <li>豁免：bridge / spatial_reset / direction_change_visible / jump_cut</li>
-      </ul>
-    </div>
+    <section id="overview">
+      <h2>03 · 分层与组成</h2>
+      <p>整个系统是四层的一根垂直主线：语义 IR 进，逐帧求解接住，编译窄腰收敛，四条下游读出。分层图上同时亮起的盒子互不依赖，先后亮起的有依赖——进场动画本身在讲这棵依赖树。</p>
 
-    <div class="module-card">
-      <div class="module-header">
-        <span class="module-tag">src/diagnostic.rs</span>
-        <h4>诊断系统</h4>
-      </div>
-      <p>~95 行，统一诊断结构。可序列化为 JSON 供机器消费。</p>
-      <ul>
-        <li><code>Diagnostic</code>：code / severity / path / message / hint</li>
-        <li><code>Severity</code>：Error / Warning 两档</li>
-        <li><code>ValidationReport</code>：集合 + 计数 + 扩展</li>
-        <li>支持 schemars 生成 JSON Schema</li>
-      </ul>
-    </div>
-
-    <div class="module-card">
-      <div class="module-header">
-        <span class="module-tag">src/io.rs</span>
-        <h4>输入输出</h4>
-      </div>
-      <p>~35 行，基于扩展名的格式分派。</p>
-      <ul>
-        <li><code>load_project</code>：.yaml/.yml/.json 自动识别</li>
-        <li><code>save_project_json</code>：pretty-printed JSON</li>
-        <li>统一 <code>anyhow::Result</code> 错误链</li>
-      </ul>
-    </div>
-
-    <div class="module-card">
-      <div class="module-header">
-        <span class="module-tag">src/report.rs</span>
-        <h4>摘要渲染</h4>
-      </div>
-      <p>~95 行，人类可读的镜头清单输出。</p>
-      <ul>
-        <li>项目 / 场景 / 镜头三级摘要</li>
-        <li>帧率换算秒数</li>
-        <li>Coverage 角色 + 景别 + 器材 + 运镜列表</li>
-        <li>供 <code>cine-ir inspect</code> 使用</li>
-      </ul>
-    </div>
-
-    <div class="module-card">
-      <div class="module-header">
-        <span class="module-tag">src/main.rs</span>
-        <h4>CLI 入口</h4>
-      </div>
-      <p>~140 行，<code>cine-ir</code> 二进制，基于 clap derive。</p>
-      <ul>
-        <li><code>validate</code>：全量验证 + 连续性分析</li>
-        <li><code>analyze</code>：仅连续性分析</li>
-        <li><code>inspect</code>：打印人类可读摘要</li>
-        <li><code>normalize</code>：YAML→规范化 JSON</li>
-        <li><code>schema</code>：从模型生成 JSON Schema</li>
-      </ul>
-    </div>
-
-    <div class="module-card">
-      <div class="module-header">
-        <span class="module-tag">docs/</span>
-        <h4>中文摄影教材</h4>
-      </div>
-      <p>14 章 mdBook + 单文件版 <code>CINEMATOGRAPHY_GUIDE.md</code>。</p>
-      <ul>
-        <li>成像原理、景别、镜头与对焦、构图</li>
-        <li>运镜、场面调度、连续性、灯光色彩</li>
-        <li>Coverage 与剪辑、视觉叙事</li>
-        <li>IR 架构、IR 参考、验证规则</li>
-        <li>Agent 编译器章节（前瞻）</li>
-      </ul>
-    </div>
-  </div>
-
-  <h2>cine-ir CLI 子命令</h2>
-
-  <div class="cli-grid">
-    <div class="cli-item">
-      <code>validate</code>
-      <span>结构 + 语义 + 连续性全量验证；--json / --deny-warnings</span>
-    </div>
-    <div class="cli-item">
-      <code>analyze</code>
-      <span>仅跨镜头连续性分析；快速检查轴线/视线/方向</span>
-    </div>
-    <div class="cli-item">
-      <code>inspect</code>
-      <span>打印紧凑的镜头计划摘要；场景时长 + 运镜一览</span>
-    </div>
-    <div class="cli-item">
-      <code>normalize</code>
-      <span>YAML / JSON → 规范化 pretty JSON；-o 指定输出</span>
-    </div>
-    <div class="cli-item">
-      <code>schema</code>
-      <span>从 Rust 模型生成 JSON Schema；schemars 驱动</span>
-    </div>
-  </div>
-
-  <h2>验证规则全景</h2>
-  <p class="lead">40+ 条诊断，分 Error（阻断性）和 Warning（建议性）。所有规则均附修复 hint。</p>
-
-  <div class="rules-grid">
-    <div class="rule-group">
-      <h4><span class="severity-dot severity-error"></span> ID 与引用</h4>
-      <ul>
-        <li>PROJECT_ID_EMPTY</li>
-        <li>SCENE_ID_EMPTY</li>
-        <li>ID_EMPTY / ID_DUPLICATE</li>
-        <li>TARGET_SUBJECT_UNKNOWN</li>
-        <li>TARGET_MARKER_UNKNOWN</li>
-        <li>FRAMING_SUBJECT_UNKNOWN</li>
-        <li>CONTINUITY_AXIS_UNKNOWN</li>
-        <li>LIGHTING_SETUP_UNKNOWN</li>
-        <li>BLOCKING_SUBJECT_UNKNOWN</li>
-        <li>BEAT_SUBJECT_UNKNOWN</li>
-      </ul>
-    </div>
-    <div class="rule-group">
-      <h4><span class="severity-dot severity-error"></span> 数值与物理</h4>
-      <ul>
-        <li>FRAME_RATE_INVALID</li>
-        <li>VECTOR_NOT_FINITE</li>
-        <li>ROTATION_NOT_FINITE</li>
-        <li>LENS_FOCAL_LENGTH_INVALID</li>
-        <li>LENS_APERTURE_INVALID</li>
-        <li>EXPOSURE_ISO_INVALID</li>
-        <li>EXPOSURE_SHUTTER_ANGLE_INVALID</li>
-        <li>EXPOSURE_WHITE_BALANCE_INVALID</li>
-        <li>SUBJECT_DIMENSIONS_INVALID</li>
-        <li>LIGHT_INTENSITY_INVALID</li>
-      </ul>
-    </div>
-    <div class="rule-group">
-      <h4><span class="severity-dot severity-error"></span> 时间线</h4>
-      <ul>
-        <li>FRAME_RANGE_EMPTY_OR_REVERSED</li>
-        <li>FRAME_RANGE_OUT_OF_SCENE</li>
-        <li>EDIT_TIMELINE_OVERLAP</li>
-        <li>CAMERA_OPERATION_RANGE_INVALID</li>
-        <li>BLOCKING_FRAME_OUT_OF_RANGE</li>
-        <li>BLOCKING_FRAMES_NOT_STRICTLY_INCREASING</li>
-        <li>EMOTIONAL_BEAT_OUT_OF_RANGE</li>
-        <li>SCENE_DURATION_INVALID</li>
-        <li>SCENE_HAS_NO_SHOTS</li>
-      </ul>
-    </div>
-    <div class="rule-group">
-      <h4><span class="severity-dot severity-warning"></span> 连续性</h4>
-      <ul>
-        <li>CONTINUITY_AXIS_CROSS</li>
-        <li>CONTINUITY_SCREEN_DIRECTION_FLIP</li>
-        <li>CONTINUITY_SMALL_ANGLE_CUT</li>
-        <li>CONTINUITY_EYELINE_MISMATCH</li>
-        <li>CAMERA_OPERATIONS_UNSORTED</li>
-        <li>SHOT_PURPOSE_MISSING</li>
-        <li>BLOCKING_TRACK_EMPTY</li>
-        <li>EDIT_TIMELINE_GAP</li>
-        <li>EDIT_TIMELINE_START_GAP</li>
-        <li>EDIT_TIMELINE_END_GAP</li>
-      </ul>
-    </div>
-  </div>
-
-  <h2>设计原则与边界</h2>
-  <div class="walkthrough">
-    <h3>核心理念</h3>
-    <ol>
-      <li><strong>语义优先：</strong>不只存 position(t)，还要存"为什么移动"——运镜是显式操作对象（dolly/zoom/orbit/...），带叙事目的和 Coverage 角色。</li>
-      <li><strong>显式例外：</strong>连续性是启发式诊断而非艺术禁令。<code>bridge</code>、<code>spatial_reset</code>、<code>direction_change_visible</code>、<code>jump_cut</code> 用于声明合理越轴。</li>
-      <li><strong>严格字段：</strong><code>deny_unknown_fields</code> 全局开启，拼写错误直接失败，不会静默降级为默认值。</li>
-      <li><strong>半开区间：</strong>所有时间范围统一 <code>[start, end)</code>，镜头运镜使用镜头局部帧坐标。</li>
-      <li><strong>坐标系自描述：</strong>文件自带单位、手性、上轴、前轴定义，适配器不得假设 Blender/Unreal/Three.js 约定一致。</li>
-      <li><strong>核心与后端解耦：</strong>IR 只做交换与静态分析，几何求解/物理渲染/烘焙轨迹属于 compiler/solver/backend 层。</li>
-    </ol>
-  </div>
-
-  <h2>示例 YAML 速览</h2>
-  <p class="lead">三镜头对话覆盖（master → Alice CU → Bob CU），含 180° 轴线观察与互反视线注解。</p>
-
-  <div class="arch-diagram" style="padding: 20px 24px; font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.7; color: #1e293b;">
-<pre style="margin:0; white-space: pre-wrap;">schema_version: "0.1"
-id: interview_scene
-title: "审讯室：三镜头对话覆盖"
-frame_rate: { numerator: 24, denominator: 1 }
-scenes:
-  - id: interrogation
-    duration_frames: 240
-    narrative:
-      dramatic_question: "Alice 是否会承认她拿走了钥匙？"
-      emotional_arc: [{ frame: 0, label: "克制" }, { frame: 160, label: "逼问" }]
-    subjects: [alice, bob, table]        # 人物 + 道具
-    axes: [dialogue_axis: alice → bob]  # 关系轴线
-    blocking:                           # 两人物各自动作轨迹
-    beats: [establish_power, alice_hesitates, bob_pressures]  # 戏剧节拍
-    lighting_setups: [cold_interrogation]  # 冷色顶灯 + 弱补光
-    shots:
-      - master_two_shot [0..80)    # 全景：建立空间，对称构图，tripod
-      - alice_close_up [80..160)   # 特写：三分法，dolly 推进 0.35m
-      - bob_close_up [160..240)    # 反打：低角度，施压感
-    <span style="color: #64748b;"># 连续性：三镜均在轴线同侧(positive)，视线互反，无越轴</span></pre>
-  </div>
-
-  <footer>
-    <p>Cinematography IR · v0.1.0 · MIT License · Rust 2021 Edition</p>
-    <p style="margin-top:4px;">文档生成时间：2026-08-23</p>
-  </footer>
-
-</div>
-
-<script>
-  // Animate arrows sequentially on load
-  document.addEventListener('DOMContentLoaded', function() {
-    const arrows = ['arrow1', 'arrow2', 'arrow3', 'arrow4', 'arrow5'];
-    arrows.forEach((id, i) => {
-      setTimeout(() => {
-        document.getElementById(id).classList.add('animate');
-      }, 200 + i * 250);
-    });
-
-    // Replay animation on diagram click
-    const diagram = document.getElementById('archDiagram');
-    diagram.addEventListener('click', function() {
-      arrows.forEach((id, i) => {
-        const el = document.getElementById(id);
-        el.classList.remove('animate');
-        setTimeout(() => el.classList.add('animate'), 50 + i * 100);
-      });
-    });
-  });
-
-  function highlightLayer(index) {
-    const boxes = document.querySelectorAll('.layer-box');
-    boxes.forEach((box, i) => {
-      const rect = box.querySelector('rect');
-      if (i === index) {
-        rect.style.strokeWidth = '3';
-        rect.style.filter = 'brightness(0.97)';
-      } else {
-        rect.style.strokeWidth = '1.5';
-        rect.style.filter = 'none';
-      }
-    });
-  }
-</script>
-<dialog class="c2a-figure-viewer" data-code2arch-figure-viewer aria-label="插图查看器">
-    <div class="c2a-zoom-shell">
-      <div class="c2a-zoom-toolbar">
-        <span class="c2a-zoom-caption"></span>
-        <div class="c2a-zoom-controls" aria-label="缩放控制">
-          <button type="button" data-c2a-zoom-out aria-label="缩小">−</button>
-          <button type="button" data-c2a-zoom-fit aria-label="适合窗口">适配</button>
-          <button type="button" data-c2a-zoom-actual aria-label="恢复百分之百">100%</button>
-          <button type="button" data-c2a-zoom-in aria-label="放大">＋</button>
-          <button type="button" class="c2a-zoom-close" data-c2a-zoom-close aria-label="关闭">×</button>
+      <!-- 图计划: 分层总览图 · 无模式 · 命题句「五层语义收敛为一份编译产物，再由四条下游分别读出」· 7节点/6边 · 预算内未删减 · A层动效: 拓扑序错峰 + 边 draw-in；交互: 图文联动 + 焦点降噪 -->
+      <figure class="plate anim" id="layers">
+        <div class="scroll">
+        <svg id="fig-layers" viewBox="0 0 960 500" role="group" aria-labelledby="fig-layers-title fig-layers-desc" style="min-width:960px">
+          <title id="fig-layers-title">分层总览</title>
+          <desc id="fig-layers-desc">镜头语言穿过语义层与求解层，在编译窄腰收敛成一份产物，再由 prompt、view、execute、compare 四条下游读出。</desc>
+          <defs>
+            <marker id="fig-layers-arr" class="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>
+            <marker id="fig-layers-arr-lit" class="arr lit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>
+          </defs>
+          <g class="edges">
+            <path class="edge draw" data-from="cineproject" data-to="solve" style="--i:0.5" d="M 480,108 V 152" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="492" y="134">运镜与调度</text>
+            <path class="edge draw" data-from="solve" data-to="compiled" style="--i:1.5" d="M 480,220 V 264" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="492" y="246">逐帧轨迹</text>
+            <path class="edge draw" data-from="compiled" data-to="prompt" style="--i:2.5" d="M 330,344 V 370 Q 330,378 322,378 H 140 Q 132,378 132,386 V 408" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="compiled" data-to="view" style="--i:2.5" d="M 430,344 V 370 Q 430,378 422,378 H 372 Q 364,378 364,386 V 408" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="compiled" data-to="execute" style="--i:2.5" d="M 530,344 V 370 Q 530,378 522,378 H 604 Q 596,378 596,386 V 408" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="compiled" data-to="compare" style="--i:2.5" d="M 630,344 V 370 Q 630,378 622,378 H 820 Q 828,378 828,386 V 408" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="472" y="368" text-anchor="middle">同一份编译产物</text>
+          </g>
+          <g class="node" data-node="cineproject" data-depth="0" style="--i:0" data-explains="product" aria-label="CineProject 语义 IR"><rect x="230" y="36" width="500" height="72" rx="6"/><text x="480" y="66" text-anchor="middle">CineProject · 语义 IR</text><text x="480" y="90" text-anchor="middle">叙事意图 · 场面调度 · 镜头设计 · 相机程序 · 连续性注记</text><text class="sub" x="718" y="56" text-anchor="end">YAML</text></g>
+          <g class="node" data-node="solve" data-depth="1" style="--i:1" data-explains="pipeline" aria-label="solve 逐帧求解"><rect x="230" y="156" width="500" height="64" rx="6"/><text x="480" y="182" text-anchor="middle">solve · 逐帧求解</text><text x="480" y="206" text-anchor="middle">18 种运镜 → 逐帧相机轨迹 · draft / full 两档保真</text></g>
+          <g class="node focal" data-node="compiled" data-depth="2" style="--i:2" data-explains="compiled" aria-label="CompiledProject 编译窄腰"><rect x="230" y="268" width="500" height="76" rx="6"/><rect class="inner" x="233" y="271" width="494" height="70" rx="4"/><text x="480" y="298" text-anchor="middle">CompiledProject · 编译窄腰</text><text x="480" y="324" text-anchor="middle">意图 + 阶段 + 轨道 + 约束 + 禁止 · schema compiled-guidance-0.1</text></g>
+          <g class="node" data-node="prompt" data-depth="3" style="--i:3" data-explains="pipeline" aria-label="prompt 下游"><rect x="34" y="412" width="196" height="64" rx="6"/><text x="132" y="438" text-anchor="middle">prompt</text><text x="132" y="462" text-anchor="middle">文本命令 · 纯</text></g>
+          <g class="node" data-node="view" data-depth="3" style="--i:3" data-explains="pipeline" aria-label="view 下游"><rect x="266" y="412" width="196" height="64" rx="6"/><text x="364" y="438" text-anchor="middle">view</text><text x="364" y="462" text-anchor="middle">审片图 · 纯</text></g>
+          <g class="node" data-node="execute" data-depth="3" style="--i:3" data-explains="execute" aria-label="execute 下游"><rect x="498" y="412" width="196" height="64" rx="6"/><text x="596" y="438" text-anchor="middle">execute</text><text x="596" y="462" text-anchor="middle">Blender 通道 · 非纯</text></g>
+          <g class="node" data-node="compare" data-depth="3" style="--i:3" data-explains="pipeline" aria-label="compare 下游"><rect x="730" y="412" width="196" height="64" rx="6"/><text x="828" y="438" text-anchor="middle">compare</text><text x="828" y="462" text-anchor="middle">约束验收 · 纯</text></g>
+        </svg>
         </div>
+        <figcaption>五层语义收敛为一份编译产物，再由 prompt、view、execute、compare 四条下游分别读出。</figcaption>
+      </figure>
+      <p class="explain"><strong>每层只做一件事。</strong>CineProject 是作者手里的语义 IR，五类信息（叙事、调度、镜头、相机、连续性）都在这一层写；solve 把运镜命令展开成逐帧轨迹，出问题会带几何诊断（主体在相机背后、出了视场、轴线侧不一致）；CompiledProject 是全场唯一被下游共享的编译产物，双描边标出它是这张图的骨干；底部四条下游里只有 execute 要跨出去找 Blender，其余三条都是纯函数。交互走查：点任何一个盒子跳到讲它的段落；悬停 compiled，四条扇出边一起亮——「谁都只认窄腰」这件事一眼可见。</p>
+
+      <h3>主走查 · YAML 进窄腰</h3>
+      <p>用仓库里真实存在的示例走一遍全程，六个环节：</p>
+      <ol>
+        <li><strong>写</strong>——作者编辑 <code>examples/jaws_beach_dolly_zoom.yaml</code>：海滩场景、观察者与两个远处泳者、8 秒里第 2 到第 7 秒做反向推轨变焦。进入的是 CineProject 语义 IR。</li>
+        <li><strong>验</strong>——<code>cine-ir validate</code> 与 <code>cine-ir analyze</code> 检查引用完整性和 180° 轴线；打错字段名在这里就报错，不会拖到渲染时才发现。</li>
+        <li><strong>编</strong>——<code>cine-ir compile</code> 内部先跑 solve 得逐帧轨迹，再切阶段、投影屏幕轨道、生成 19 种约束并当场判定，落成一份 <code>jaws-guidance.json</code>。</li>
+        <li><strong>读</strong>——四条下游各取所需：prompt 吐时间分段命令与负面约束；view 画审片卡；execute 生成 Blender 脚本渲染 10 个通道；compare 备好逐约束的验收清单。</li>
+        <li><strong>回</strong>——外部模型生成视频后（轨迹估计器 <span class="badge">TBD</span> 尚未实现），<code>estimate.json</code> 交给 compare：主体画面高度是否守住 0.42、背景是否扩张，逐条给三态判定。</li>
+        <li><strong>改</strong>——判定失败时回到第 1 步改 YAML 的意图，而不是修补输出；这是「编译器」姿态的落点。</li>
+      </ol>
+    </section>
+    <section id="compiled">
+      <h2>04 · 窄腰里有什么</h2>
+      <p>编译窄腰里每个镜头是一份 CompiledShot：七类信息并排存放，意图（为什么拍）、阶段（时间怎么切）、轨道（每帧在哪儿）、约束（怎么算合格）、判定（现在合不合格）、禁止（不许拿什么凑数）和剪辑关系（前后镜头怎么接）。数据形状用领域类型表达如下。</p>
+      <!-- 作者侧 LaTeX 源存 data-latex；可见层是等价的排版文本，屏幕阅读器读同一份内容 -->
+      <figure class="formal-model" data-latex="\mathrm{CompiledShot}=\mathrm{Intent}\times[\mathrm{Phase}]\times\mathrm{Track}\times[\mathrm{Constraint}]\times[\mathrm{Eval}]\times[\mathrm{Prohibition}]\times\mathrm{Edit};\ \mathrm{Track}=\mathrm{World}+\mathrm{Screen};\ \mathrm{PhaseKind}=\mathrm{Hold}\mid\mathrm{Motion}\mid\mathrm{Focus}\mid\mathrm{Reveal}\mid\mathrm{Settle}\mid\mathrm{Mixed};\ \mathrm{Eval}=\mathrm{PASS}\mid\mathrm{FAIL}\mid\mathrm{INDETERMINATE}">
+        <div class="adt">
+          <p class="def"><span class="ty">CompiledShot</span><span class="op">=</span>Intent<span class="op">×</span>[Phase]<span class="op">×</span>Track<span class="op">×</span>[Constraint]<span class="op">×</span>[判定]<span class="op">×</span>[Prohibition]<span class="op">×</span>EditRelation</p>
+          <p class="def"><span class="ty">Track</span><span class="op">=</span><span class="ctor">World</span><span class="zh">（相机 / 主体 / 镜头 / 对焦 / 曝光 / 灯光，逐帧）</span><span class="op">+</span><span class="ctor">Screen</span><span class="zh">（包围盒 · 可见比例 · 中心 · 深度 · 焦点评分）</span></p>
+          <p class="def"><span class="ty">PhaseKind</span><span class="op">=</span><span class="ctor">Hold</span><span class="op">|</span><span class="ctor">Motion</span><span class="op">|</span><span class="ctor">Focus</span><span class="op">|</span><span class="ctor">Reveal</span><span class="op">|</span><span class="ctor">Settle</span><span class="op">|</span><span class="ctor">Mixed</span><span class="zh">——按运镜区间与节拍边界自动切分</span></p>
+          <p class="def"><span class="ty">判定</span><span class="op">=</span><span class="ctor">PASS</span><span class="op">|</span><span class="ctor">FAIL</span><span class="op">|</span><span class="ctor">INDETERMINATE</span><span class="zh">——每条约束各判各的，19 种约束全部带容差</span></p>
+        </div>
+        <figcaption>一个镜头 = 意图 × 阶段 × 双空间轨道 × 带判定的约束 × 禁止条件 × 剪辑关系。</figcaption>
+      </figure>
+      <div class="annotation-row">
+      <div class="annotation-main"><p>
+          两个空间同时保留是关键设计：世界空间记「相机与主体实际在哪」，屏幕空间记「观众看见了什么」。compare 两侧都能测——生成结果可能世界轨迹全对但画面走样，也可能画面近似而机头根本没动过。<a class="section-ref" href="#pipeline">流水线一节看这两份数据各自流向哪里</a>。禁止条件在编译时自动派生：写了 dolly_zoom，就自动禁止用手持晃动、数字裁剪或演员位移来冒充。<sup class="note-ref"><a href="#note-2" role="doc-noteref" aria-describedby="note-2" aria-label="查看旁注 2">2</a></sup>
+      </p></div>
+      <aside class="sidenote" id="note-2" role="note"><span class="note-label">02 · 核对处</span>19 种约束不是口号，是枚举点数：subject_bbox_height、reveal_visibility、focus_handoff、horizon_lock、no_camera_motion……每条自带容差；hold 与 settle 阶段还会派生出「相机不许动」的约束。</aside>
       </div>
-      <div class="c2a-zoom-viewport" tabindex="0" aria-label="可滚动的放大插图"><div class="c2a-zoom-stage"></div></div>
-    </div>
-  </dialog>
-<script data-code2arch-reading-runtime>
-  (() => {
-    const ready = () => {
-      document.body.classList.add('c2a-refined');
-      if (!document.querySelector('.c2a-page-shell')) {
-        const movable = [...document.body.children].filter(el =>
-          !['SCRIPT', 'STYLE', 'DIALOG'].includes(el.tagName));
-        const shell = document.createElement('div');
-        shell.className = 'c2a-page-shell';
-        const toc = document.createElement('nav');
-        toc.className = 'c2a-page-toc';
-        toc.setAttribute('aria-label', '页面目录');
-        toc.innerHTML = '<strong>目录</strong>';
-        const content = document.createElement('div');
-        content.className = 'c2a-document';
-        movable.forEach(el => content.append(el));
-        shell.append(toc, content);
-        document.body.prepend(shell);
-        [...content.querySelectorAll('nav.toc, nav.page-toc')].forEach(oldToc => {
-          oldToc.parentElement?.classList.add('c2a-had-own-toc');
-        });
-        [...content.querySelectorAll('h2')].forEach((heading, index) => {
-          if (!heading.id) heading.id = `c2a-section-${index + 1}`;
-          const link = document.createElement('a');
-          link.href = `#${heading.id}`;
-          link.textContent = heading.textContent.trim();
-          toc.append(link);
-        });
-        if (!toc.querySelector('a')) toc.hidden = true;
-      }
+    </section>
 
-      const dialog = document.querySelector('[data-code2arch-figure-viewer]');
-      if (!dialog) return;
-      const viewport = dialog.querySelector('.c2a-zoom-viewport');
-      const stage = dialog.querySelector('.c2a-zoom-stage');
-      const caption = dialog.querySelector('.c2a-zoom-caption');
-      let active = null, placeholder = null, previousFocus = null, originalStyle = null;
-      let baseWidth = 0, baseHeight = 0, scale = 1;
-      const clamp = value => Math.min(4, Math.max(.25, value));
-      const render = value => {
-        if (!active) return;
-        scale = clamp(value);
-        const width = baseWidth * scale, height = baseHeight * scale;
-        active.style.width = `${width}px`;
-        active.style.height = `${height}px`;
-        stage.style.width = `${Math.max(viewport.clientWidth, width + 48)}px`;
-        stage.style.height = `${Math.max(viewport.clientHeight, height + 48)}px`;
-        dialog.dataset.scale = scale.toFixed(3);
-      };
-      const fit = () => render(Math.min(
-        (viewport.clientWidth - 48) / baseWidth,
-        (viewport.clientHeight - 48) / baseHeight));
-      const close = () => {
-        if (!active) return;
-        placeholder.replaceWith(active);
-        originalStyle === null ? active.removeAttribute('style') : active.setAttribute('style', originalStyle);
-        active = null; placeholder = null;
-        document.body.classList.remove('c2a-zoom-open');
-        if (dialog.open) dialog.close();
-        previousFocus?.focus();
-      };
-      const open = media => {
-        if (active) close();
-        previousFocus = document.activeElement;
-        const box = media.getBoundingClientRect();
-        const viewBox = media.tagName === 'svg' ? media.viewBox.baseVal : null;
-        baseWidth = viewBox?.width || media.naturalWidth || box.width;
-        baseHeight = viewBox?.height || media.naturalHeight || box.height;
-        originalStyle = media.getAttribute('style');
-        placeholder = document.createElement('div');
-        placeholder.className = 'c2a-zoom-placeholder';
-        placeholder.style.height = `${box.height}px`;
-        placeholder.setAttribute('aria-hidden', 'true');
-        media.replaceWith(placeholder); active = media; stage.append(media);
-        const host = placeholder.closest('figure, .diagram-wrap, .diagram-container, .diagram-card');
-        caption.textContent = host?.querySelector('figcaption, .diagram-caption')?.textContent.trim()
-          || host?.closest('section')?.querySelector('h2')?.textContent.trim() || '插图';
-        document.body.classList.add('c2a-zoom-open');
-        dialog.showModal();
-        requestAnimationFrame(() => { fit(); viewport.scrollTo(0, 0); viewport.focus(); });
-        return true;
-      };
+    <section id="pipeline">
+      <h2>05 · 条件信号流水线</h2>
+      <p>下游要回答的问题只有一个：视频生成模型吃什么。答案是三类输入槽——文本 prompt、参考图、参考视频与数值控制——恰好由窄腰的不同地层喂给。流动的粒子沿四条轨道循环：三条从窄腰出发去往输入槽，一条把生成结果带回验收。</p>
 
-      const seen = new Set();
-      [...document.querySelectorAll('svg')].filter(svg => !dialog.contains(svg)).forEach((media, index) => {
-        const host = media.closest('figure, .diagram-wrap, .diagram-container, .diagram-card') || media.parentElement;
-        if (!host || seen.has(host) || host.closest('.c2a-page-toc')) return;
-        seen.add(host); host.classList.add('c2a-zoomable');
-        const button = document.createElement('button');
-        button.type = 'button'; button.className = 'c2a-figure-zoom';
-        button.setAttribute('aria-label', `放大查看图 ${index + 1}`);
-        button.title = `放大查看图 ${index + 1}`;
-        button.addEventListener('click', () => open(media));
-        host.append(button);
-      });
-      dialog.querySelector('[data-c2a-zoom-out]').addEventListener('click', () => render(scale / 1.25));
-      dialog.querySelector('[data-c2a-zoom-in]').addEventListener('click', () => render(scale * 1.25));
-      dialog.querySelector('[data-c2a-zoom-actual]').addEventListener('click', () => render(1));
-      dialog.querySelector('[data-c2a-zoom-fit]').addEventListener('click', fit);
-      dialog.querySelector('[data-c2a-zoom-close]').addEventListener('click', close);
-      dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
-      dialog.addEventListener('click', event => { if (event.target === dialog) close(); });
-      viewport.addEventListener('wheel', event => {
-        if (!event.ctrlKey && !event.metaKey) return;
-        event.preventDefault(); render(scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15));
-      }, { passive: false });
-      document.addEventListener('keydown', event => {
-        if (!dialog.open) return;
-        if (event.key === '+' || event.key === '=') render(scale * 1.25);
-        else if (event.key === '-') render(scale / 1.25);
-        else if (event.key === '0') render(1);
-        else if (event.key.toLowerCase() === 'f') fit();
-      });
-      window.addEventListener('resize', () => { if (dialog.open) fit(); });
-      window.__figureZoom = {
-        open: index => {
-          const media = [...document.querySelectorAll('svg')].filter(svg => !dialog.contains(svg))[index];
-          return media ? open(media) : false;
-        },
-        close, fit, actual: () => render(1), scale: render,
-        state: () => ({ open: dialog.open, scale, hasFigure: Boolean(active) }),
-      };
+      <!-- 图计划: 数据流图 · 无模式 · 命题句「同一份编译产物分头变成三类条件信号，只有 execute 跨出纯函数边界」· 10节点/11边 · 预算内未删减（compare 直读窄腰的边省略，见模块图） · A层动效: 流粒子×4；交互: 焦点降噪 + 图文联动 -->
+      <figure class="plate anim" id="pipeline-fig">
+        <div class="scroll">
+        <svg id="fig-pipeline" viewBox="0 0 1140 540" role="group" aria-labelledby="fig-pipeline-title fig-pipeline-desc" style="min-width:1140px">
+          <title id="fig-pipeline-title">条件信号流水线</title>
+          <desc id="fig-pipeline-desc">镜头 YAML 经校验与求解进入编译窄腰，再分成文本、参考图、数值控制三路喂给视频生成模型；execute 跨出边界驱动 Blender，生成结果回来由 compare 验收。</desc>
+          <rect class="boundary" x="932" y="64" width="156" height="284" rx="6"/>
+          <text class="edge-label" x="938" y="342">外部运行时与模型</text>
+          <g class="edges">
+            <path class="edge draw" data-from="yaml" data-to="solve" style="--i:0.5" d="M 170,280 H 246" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="208" y="272" text-anchor="middle">通过校验</text>
+            <path class="edge draw" data-from="solve" data-to="compiled" style="--i:1.5" d="M 380,280 H 556" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="468" y="272" text-anchor="middle">逐帧轨迹</text>
+            <path class="edge draw" data-from="compiled" data-to="prompt" data-flow="" style="--i:2.5" d="M 730,257 H 744 Q 752,257 752,249 V 120 Q 752,112 760,112 H 786" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="762" y="146">①</text>
+            <path class="edge draw" data-from="compiled" data-to="view" data-flow="" style="--i:2.5" d="M 730,280 H 766 Q 774,280 774,272 V 188 Q 774,180 782,180 H 786" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="782" y="232">②</text>
+            <path class="edge draw" data-from="compiled" data-to="execute" data-flow="" style="--i:2.5" d="M 730,302 H 786" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="752" y="294">③</text>
+            <path class="edge draw" data-from="execute" data-to="blender" style="--i:3.5" d="M 920,302 H 948" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="937" y="294" text-anchor="middle">bpy</text>
+            <path class="edge draw" data-from="blender" data-to="model" style="--i:4.5" d="M 1005,274 V 202" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="1013" y="240">通道视频</text>
+            <path class="edge draw" data-from="prompt" data-to="model" style="--i:5" d="M 920,112 H 936" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="view" data-to="model" style="--i:5" d="M 920,180 H 936" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge inferred" data-from="model" data-to="estimate" style="--i:6" d="M 1070,150 H 1088 Q 1096,150 1096,158 V 450 Q 1096,458 1088,458 H 1076" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="1088" y="390" text-anchor="end">生成结果 ?</text>
+            <path class="edge draw" data-from="estimate" data-to="compare" data-flow="" style="--i:6.5" d="M 940,458 H 924" marker-end="url(#fig-layers-arr)"/>
+            <text class="edge-label" x="932" y="508" text-anchor="middle">estimate.json</text>
+          </g>
+          <g class="node store" data-node="yaml" data-depth="0" style="--i:0" data-explains="product" aria-label="镜头 YAML"><rect x="30" y="246" width="140" height="68" rx="6"/><line x1="30" y1="252" x2="170" y2="252"/><text x="100" y="280" text-anchor="middle">镜头 YAML</text><text class="sub" x="100" y="302" text-anchor="middle">examples/*.yaml</text></g>
+          <g class="node" data-node="solve" data-depth="1" style="--i:1" data-explains="pipeline" aria-label="solve 逐帧求解"><rect x="250" y="246" width="130" height="68" rx="6"/><text x="315" y="280" text-anchor="middle">solve</text><text x="315" y="302" text-anchor="middle">逐帧求解</text></g>
+          <g class="node focal" data-node="compiled" data-depth="2" style="--i:2" data-explains="compiled" aria-label="CompiledProject 编译窄腰"><rect x="560" y="234" width="170" height="92" rx="6"/><rect class="inner" x="563" y="237" width="164" height="86" rx="4"/><text x="645" y="262" text-anchor="middle">CompiledProject</text><text x="645" y="286" text-anchor="middle">编译窄腰</text><text x="645" y="312" text-anchor="middle">意图 · 阶段 · 轨道 · 约束</text></g>
+          <g class="node" data-node="prompt" data-depth="3" style="--i:3" data-explains="pipeline" aria-label="prompt 下游"><rect x="790" y="84" width="130" height="56" rx="6"/><text x="855" y="108" text-anchor="middle">prompt</text><text x="855" y="128" text-anchor="middle">文本命令</text></g>
+          <g class="node" data-node="view" data-depth="3" style="--i:3" data-explains="pipeline" aria-label="view 下游"><rect x="790" y="152" width="130" height="56" rx="6"/><text x="855" y="176" text-anchor="middle">view</text><text x="855" y="196" text-anchor="middle">审片图</text></g>
+          <g class="node" data-node="execute" data-depth="3" style="--i:3" data-explains="execute" aria-label="execute 下游"><rect x="790" y="274" width="130" height="56" rx="6"/><text x="855" y="298" text-anchor="middle">execute</text><text x="855" y="318" text-anchor="middle">通道生成</text></g>
+          <g class="node" data-node="compare" data-depth="7" style="--i:7" data-explains="pipeline" aria-label="compare 下游"><rect x="790" y="430" width="130" height="56" rx="6"/><text x="855" y="454" text-anchor="middle">compare</text><text x="855" y="474" text-anchor="middle">逐约束三态判定</text></g>
+          <g class="node external" data-node="blender" data-depth="4" style="--i:4" data-explains="execute" aria-label="Blender 外部运行时"><rect x="955" y="274" width="100" height="56" rx="6"/><text x="1005" y="298" text-anchor="middle">Blender</text><text x="1005" y="318" text-anchor="middle">5.2 LTS</text></g>
+          <g class="node external" data-node="model" data-depth="5" style="--i:5" data-explains="pipeline" aria-label="视频生成模型"><rect x="940" y="84" width="130" height="112" rx="6"/><text x="1005" y="112" text-anchor="middle">视频生成模型</text><text x="1005" y="136" text-anchor="middle">① 文本 prompt</text><text x="1005" y="156" text-anchor="middle">② 参考图</text><text x="1005" y="176" text-anchor="middle">③ 视频 · 数值</text></g>
+          <g class="node store" data-node="estimate" data-depth="6" style="--i:6" data-explains="pipeline" aria-label="生成结果轨迹 estimate.json"><rect x="940" y="430" width="130" height="56" rx="6"/><line x1="940" y1="436" x2="1070" y2="436"/><text x="1005" y="458" text-anchor="middle">生成结果轨迹</text><text class="sub" x="1005" y="478" text-anchor="middle">estimate.json</text></g>
+        </svg>
+        </div>
+        <div class="legend" aria-label="线型图例">
+          <span><svg aria-hidden="true" focusable="false"><line x1="2" y1="6" x2="34" y2="6" stroke="var(--muted)" stroke-width="1.5"/></svg>实际数据流</span>
+          <span><svg aria-hidden="true" focusable="false"><line x1="2" y1="6" x2="34" y2="6" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="2 3"/></svg>推断（估计器未实现）</span>
+        </div>
+        <figcaption>同一份编译产物分头变成文本、参考图、数值控制三类条件信号；只有 execute 跨出纯函数边界，生成结果再由 compare 收回来验收。</figcaption>
+      </figure>
+      <p class="explain"><strong>从左往右是一条编译指令的一生。</strong>镜头 YAML 先过校验（validate / analyze 在这一步，图上由「通过校验」标注带过）交给 solve 展开逐帧轨迹，再进编译窄腰——双描边的盒子是全图唯一被四方共享的产物。窄腰右侧分三路：① 意图与阶段喂 prompt 出文本命令，② 屏幕轨迹喂 view 出审片图，③ 六条逐帧轨道喂 execute 生成 Blender 脚本；Blender 渲染的白模多通道视频与 prompt、view 的产物一起构成视频生成模型的三个输入槽。虚线边界外是外部运行时；那条虚线回边标着问号——从生成视频估计相机轨迹的估计器还没实现，compare 目前只做了比对的一半。<sup class="note-ref"><a href="#note-3" role="doc-noteref" aria-describedby="note-3" aria-label="查看旁注 3">3</a></sup>交互走查：悬停 compiled，三条扇出边同时亮起；四条粒子轨道分别演示三路条件信号与一条回流。compare 直读窄腰的那条边省略了，<a class="section-ref" href="#modules">模块依赖图</a>里画着它。</p>
+      <div class="annotation-row">
+      <div class="annotation-main"><p>
+          纯与非纯的边界用三问判定：会因几何失败吗（归 solve）？需要外部运行时或真实资产吗（归 execute）？只是把同一份信息重新编码吗（归纯渲染器）。「输出会动」不算执行——需要外部运行时才算。
+      </p></div>
+      <aside class="sidenote" id="note-3" role="note"><span class="note-label">03 · 具体例</span>「大白鲨」示例的验收判据全部来自屏幕轨道：8 秒里 observer 的画面高度守住 ≈0.42 不变，两个背景泳者向画面边缘扩张，相机从 3.8m 退到 7.0m。约束失败改 YAML，不改输出。</aside>
+      </div>
+    </section>
+    <section id="execute">
+      <h2>06 · Blender 执行链</h2>
+      <p>execute 是四条下游里唯一跨出纯函数边界的：它把六条逐帧轨道翻译成一份 bpy 脚本（坐标转换全部在 Rust 侧完成，Python 只接收 Blender 世界空间），交给 Blender 渲染白模多通道。发布是原子的——渲染先写进带进程号的工作目录，校验通过才落最终 manifest；失败时保留完整现场，不会留下貌似成功的产物。</p>
+
+      <!-- 图计划: 时序图（生命线） · — · 命题句「多通道渲染先落工作目录，校验通过才原子发布」· 5参与者/6消息/1片段框 · 预算内未删减 · A层动效: 逐步点亮；交互: 单步 hover / click / 键盘 -->
+      <figure class="plate seq" id="blender" data-hint="blender-hint">
+        <div class="scroll">
+        <svg id="fig-blender" viewBox="0 0 960 352" role="group" aria-labelledby="fig-blender-title fig-blender-desc" style="min-width:960px">
+          <title id="fig-blender-title">Blender 执行时序</title>
+          <desc id="fig-blender-desc">作者运行命令后，CLI 生成 bpy 脚本并启动 Blender 逐通道渲染，先写工作目录，校验通过才原子发布。</desc>
+          <line class="lifeline" x1="80" y1="74" x2="80" y2="340"/>
+          <line class="lifeline" x1="265" y1="54" x2="265" y2="340"/>
+          <line class="lifeline" x1="450" y1="54" x2="450" y2="340"/>
+          <line class="lifeline" x1="680" y1="54" x2="680" y2="340"/>
+          <line class="lifeline" x1="875" y1="54" x2="875" y2="340"/>
+          <g class="step" tabindex="0" aria-label="作者运行 cine-ir render blender"><path class="edge" d="M 98,100 H 258" marker-end="url(#fig-layers-arr)"/><rect class="label" x="118" y="88" width="112" height="22" rx="4"/><text x="174" y="104" text-anchor="middle">① 运行渲染命令</text></g>
+          <g class="step" tabindex="0" aria-label="CLI 生成 bpy 脚本，坐标已在 Rust 侧转换"><path class="edge" d="M 265,140 H 441" marker-end="url(#fig-layers-arr)"/><rect class="label" x="278" y="128" width="150" height="22" rx="4"/><text x="353" y="144" text-anchor="middle">② 生成 bpy 脚本</text></g>
+          <g class="step" tabindex="0" aria-label="CLI 启动 Blender 执行脚本，CI 环境由桩代替"><path class="edge" d="M 265,180 H 673" marker-end="url(#fig-layers-arr)"/><rect class="label" x="399" y="168" width="140" height="22" rx="4"/><text x="469" y="184" text-anchor="middle">③ 启动 Blender 执行</text></g>
+          <g class="step" tabindex="0" aria-label="Blender 逐通道写工作目录，十个通道各就各位"><path class="edge" d="M 680,220 H 868" marker-end="url(#fig-layers-arr)"/><rect class="label" x="690" y="208" width="168" height="22" rx="4"/><text x="774" y="224" text-anchor="middle">④ 逐通道写工作目录</text></g>
+          <g class="step" tabindex="0" aria-label="校验通过，脚本原子发布 manifest 与完成标记"><path class="edge" d="M 450,272 H 868" marker-end="url(#fig-layers-arr)"/><rect class="label" x="600" y="260" width="180" height="22" rx="4"/><text x="690" y="276" text-anchor="middle">⑤ 原子发布 manifest</text></g>
+          <g class="step" tabindex="0" aria-label="校验失败，保留带进程号的失败现场"><path class="edge" d="M 450,322 H 868" marker-end="url(#fig-layers-arr)"/><rect class="label" x="610" y="310" width="160" height="22" rx="4"/><text x="690" y="326" text-anchor="middle">⑥ 保留失败现场</text></g>
+          <rect class="frag" x="350" y="246" width="560" height="94" rx="4"/>
+          <rect class="frag-tab" x="354" y="246" width="40" height="18"/>
+          <text class="frag-text" x="357" y="260">ALT</text>
+          <text class="edge-label" x="400" y="260">[文件数与格式校验]</text>
+          <line class="frag-div" x1="350" y1="294" x2="910" y2="294"/>
+          <text class="edge-label" x="400" y="312">[失败分支]</text>
+          <g class="node role" data-node="author" data-explains="product" aria-label="作者"><circle cx="80" cy="30" r="18"/><text x="80" y="68" text-anchor="middle">作者</text></g>
+          <g class="actor" data-node="cli" data-explains="modules" aria-label="cine-ir CLI"><rect x="200" y="14" width="130" height="40" rx="6"/><text x="265" y="39" text-anchor="middle">cine-ir CLI</text></g>
+          <g class="actor" data-node="script" data-explains="execute" aria-label="bpy 脚本"><rect x="380" y="14" width="140" height="40" rx="6"/><text x="450" y="39" text-anchor="middle">bpy 脚本</text></g>
+          <g class="actor" data-node="blender" data-explains="execute" aria-label="Blender"><rect x="620" y="14" width="120" height="40" rx="6"/><text x="680" y="39" text-anchor="middle">Blender</text></g>
+          <g class="node store" data-node="outdir" data-explains="execute" aria-label="渲染目录"><rect x="810" y="14" width="130" height="40" rx="6"/><line x1="810" y1="20" x2="940" y2="20"/><text x="875" y="39" text-anchor="middle">渲染目录</text></g>
+        </svg>
+        </div>
+        <figcaption>多通道渲染先落带进程号的工作目录，文件数与格式校验通过才原子发布 manifest。
+          <div class="figure-controls"><button class="replay" type="button">▶ 重放动效</button><p class="step-hint" id="blender-hint" role="status" aria-live="polite" aria-atomic="true">共 6 步</p></div>
+        </figcaption>
+      </figure>
+      <p class="explain"><strong>这条链上谁在等谁。</strong>作者只发一条命令（①）；CLI 生成脚本时已经把坐标全部换算到 Blender 的世界空间（②），Python 侧不做数学；Blender 逐通道渲染 beauty、深度、法线、ID、光流、骨架姿态等十个通道，全部写进 <code>.rendering-PID</code> 工作目录（④）；随后脚本自己校验文件数与格式——通过就改名发布 manifest 与完成标记（⑤），失败则整个目录转成 <code>.failed-PID</code> 现场并附上脚本与日志（⑥）。片段框标出⑤⑥是同一校验的两个出口。没有 Blender 的 CI 环境用桩执行②至④的同一控制流，涉及 Blender 的改动仍需在真实 5.2 LTS 里过一遍。hover 或 ← / → 可逐步查看。</p>
+    </section>
+
+    <section id="modules">
+      <h2>07 · 模块依赖</h2>
+      <p>把 src 目录压到模块粒度，依赖方向全部朝下：类型与数学垫底，校验与分析读它们，求解器再往上，编译窄腰立在求解器上，四条下游与 CLI 入口最后进场。进场动画按拓扑深度错峰——同时亮起的模块互不依赖。</p>
+
+      <!-- 图计划: 模块依赖图 · 无模式 · 命题句「所有模块都指向窄腰，窄腰只立在求解器上」· 12节点/12边 · 预算删掉了 io / report / palette 三个薄模块（见文末图解）与 main 直连全部子命令的边 · A层动效: 边 draw-in + 拓扑序错峰；交互: 焦点降噪 -->
+      <figure class="plate anim" id="modules-fig">
+        <div class="scroll">
+        <svg id="fig-modules" viewBox="0 0 960 560" role="group" aria-labelledby="fig-modules-title fig-modules-desc" style="min-width:960px">
+          <title id="fig-modules-title">模块依赖</title>
+          <desc id="fig-modules-desc">类型、数学与诊断垫底，校验分析求解在其上，编译窄腰立在求解器上，四条下游与 CLI 最后进场。</desc>
+          <g class="edges">
+            <path class="edge draw" data-from="validate" data-to="diagnostic" style="--i:1.5" d="M 145,150 V 98" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="analyze" data-to="model" style="--i:1.5" d="M 370,150 V 132 Q 370,124 362,124 H 338 Q 330,124 330,116 V 98" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="solve" data-to="model" style="--i:1.5" d="M 635,150 V 28 Q 635,20 627,20 H 388 Q 380,20 380,32 V 34" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="analyze" data-to="math" style="--i:1.5" d="M 440,150 V 132 Q 440,124 448,124 H 497 Q 505,124 505,116 V 98" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="solve" data-to="math" style="--i:1.5" d="M 590,150 V 132 Q 590,124 582,124 H 563 Q 555,124 555,116 V 98" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="compiled" data-to="solve" style="--i:2.5" d="M 480,260 V 236 Q 480,228 472,228 H 587 Q 595,228 595,220 V 206" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="prompt" data-to="compiled" style="--i:3.5" d="M 195,380 V 352 Q 195,344 187,344 H 362 Q 370,344 370,336 V 326" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="view" data-to="compiled" style="--i:3.5" d="M 375,380 V 368 Q 375,360 383,360 H 442 Q 450,360 450,352 V 326" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="execute" data-to="compiled" style="--i:3.5" d="M 560,380 V 368 Q 560,360 552,360 H 518 Q 510,360 510,352 V 326" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="compare" data-to="compiled" style="--i:3.5" d="M 755,380 V 352 Q 755,344 747,344 H 578 Q 570,344 570,336 V 326" marker-end="url(#fig-layers-arr)"/>
+            <path class="edge draw" data-from="main" data-to="compiled" style="--i:4.5" d="M 480,480 V 326" marker-end="url(#fig-layers-arr)"/>
+          </g>
+          <g class="node" data-node="model" data-depth="0" style="--i:0" data-explains="compiled" aria-label="model 模块"><rect x="280" y="40" width="150" height="52" rx="6"/><text x="355" y="62" text-anchor="middle">model</text><text x="355" y="82" text-anchor="middle">IR 类型</text></g>
+          <g class="node" data-node="math" data-depth="0" style="--i:0" data-explains="compiled" aria-label="math 模块"><rect x="470" y="40" width="110" height="52" rx="6"/><text x="525" y="62" text-anchor="middle">math</text><text x="525" y="82" text-anchor="middle">坐标与投影</text></g>
+          <g class="node" data-node="diagnostic" data-depth="0" style="--i:0" data-explains="compiled" aria-label="diagnostic 模块"><rect x="65" y="40" width="160" height="52" rx="6"/><text x="145" y="62" text-anchor="middle">diagnostic</text><text x="145" y="82" text-anchor="middle">诊断报告</text></g>
+          <g class="node" data-node="validate" data-depth="1" style="--i:1" data-explains="features" aria-label="validate 模块"><rect x="70" y="150" width="150" height="52" rx="6"/><text x="145" y="172" text-anchor="middle">validate</text><text x="145" y="192" text-anchor="middle">结构校验</text></g>
+          <g class="node" data-node="analyze" data-depth="1" style="--i:1" data-explains="features" aria-label="analyze 模块"><rect x="330" y="150" width="150" height="52" rx="6"/><text x="405" y="172" text-anchor="middle">analyze</text><text x="405" y="192" text-anchor="middle">连续性分析</text></g>
+          <g class="node" data-node="solve" data-depth="1" style="--i:1" data-explains="pipeline" aria-label="solve 模块"><rect x="530" y="150" width="130" height="52" rx="6"/><text x="595" y="172" text-anchor="middle">solve</text><text x="595" y="192" text-anchor="middle">逐帧求解</text></g>
+          <g class="node focal" data-node="compiled" data-depth="2" style="--i:2" data-explains="compiled" aria-label="compiled 模块"><rect x="330" y="260" width="300" height="60" rx="6"/><rect class="inner" x="333" y="263" width="294" height="54" rx="4"/><text x="480" y="285" text-anchor="middle">compiled</text><text x="480" y="307" text-anchor="middle">编译窄腰 · compiled-guidance-0.1</text></g>
+          <g class="node" data-node="prompt" data-depth="3" style="--i:3" data-explains="pipeline" aria-label="prompt 模块"><rect x="120" y="380" width="150" height="52" rx="6"/><text x="195" y="402" text-anchor="middle">prompt</text><text x="195" y="422" text-anchor="middle">文本方言</text></g>
+          <g class="node" data-node="view" data-depth="3" style="--i:3" data-explains="pipeline" aria-label="view 模块"><rect x="320" y="380" width="110" height="52" rx="6"/><text x="375" y="402" text-anchor="middle">view</text><text x="375" y="422" text-anchor="middle">画布与编码</text></g>
+          <g class="node" data-node="execute" data-depth="3" style="--i:3" data-explains="execute" aria-label="execute 模块"><rect x="490" y="380" width="140" height="52" rx="6"/><text x="560" y="402" text-anchor="middle">execute</text><text x="560" y="422" text-anchor="middle">Blender 适配</text></g>
+          <g class="node" data-node="compare" data-depth="3" style="--i:3" data-explains="pipeline" aria-label="compare 模块"><rect x="680" y="380" width="150" height="52" rx="6"/><text x="755" y="402" text-anchor="middle">compare</text><text x="755" y="422" text-anchor="middle">闭环测量</text></g>
+          <g class="node" data-node="main" data-depth="4" style="--i:4" data-explains="features" aria-label="main 模块"><rect x="395" y="480" width="170" height="52" rx="6"/><text x="480" y="502" text-anchor="middle">main</text><text x="480" y="522" text-anchor="middle">cine-ir CLI 入口</text></g>
+        </svg>
+        </div>
+        <figcaption>所有下游模块都指向窄腰，窄腰只立在求解器上；全部边都是「依赖于」。</figcaption>
+      </figure>
+      <p class="explain"><strong>依赖是单向的，窄腰是汇点。</strong>垫底三层：model 定义 IR 类型，math 提供坐标系感知的基向量与投影，diagnostic 是验证与分析共用的报告结构；validate 与 analyze 分别做结构校验和连续性启发式，都只读底层；solve 把 18 种运镜展开成逐帧轨迹；compiled 立在 solve 上，是 prompt、view、execute、compare 四条下游共同的依赖，compare 直读窄腰的边就画在这里；main 是 CLI 入口，实际直连全部子命令，图里只画它到窄腰的一条代表边。悬停 compiled 看清「谁依赖它」；悬停 solve 看「它替谁扛住几何」。按预算删掉的三个薄模块：io（加载与保存）、report（人类可读摘要）、palette（主体确定性配色，view 与 execute 使用），都被 CLI 与下游直接调用，不参与分层。</p>
+    </section>
+
+    <section id="tradeoffs">
+      <h2>08 · 取舍与边界</h2>
+      <ul>
+        <li><strong>窄腰换方言</strong>——下游只认一份编译产物，新增消费者不需要理解 YAML 的全部历史字段；代价是编译产物本身成为强契约，schema 版本（compiled-guidance-0.1）必须显式演进。</li>
+        <li><strong>三问划纯非纯</strong>——「会因几何失败吗 / 需要外部运行时吗 / 只是重新编码吗」把归属判断变成可背诵的口诀；代价是执行细节（Blender 版本差异）被推进边界之外，靠实机验证兜底。</li>
+        <li><strong>诊断不是禁令</strong>——轴线翻转给 warning 而不是 error，例外（bridge、spatial_reset、jump_cut）显式声明；代价是验证通过不等于连续性无瑕，最终裁判权在人。</li>
+        <li><strong>两档保真</strong>——draft 确定性运动学保证快与可复现，full 追加云台限速与代理碰撞；代价是 full 的物理也只是代理级别的近似，不伪装成生产级模拟。</li>
+        <li><strong>明确不做</strong>——角色外观身份保真（白模只需可区分）、视图层加载场景资产、光学畸变与真实镜头库；轨迹估计器未实现，compare 目前只覆盖闭环的一半。<span class="badge">TBD</span></li>
+      </ul>
+    </section>
+
+    <footer class="footnotes" aria-label="脚注">
+      <p>以下内容可延后阅读，不影响主线。</p>
+      <ol>
+        <li id="fn-1" role="doc-footnote">文中数字与行为均经双源核对：定义处（src/ 下 model.rs、compiled.rs、solve/ 等）与行为处（docs/15-conditioning-pipeline.md、README.md、tests/ 快照）互证；代码快照为 commit 5d8e6b2。<a href="#product" aria-label="返回产品介绍">返回</a></li>
+        <li id="fn-2" role="doc-footnote">视图与执行层的分层决策记录在 ADR-1115（~/projects/docs/adr/1115-cinematography-ir-view-and-execute-layers.md）；审片动画输出的 <code>window.__insightVideo.seek</code> 协议见 docs/15 §15.4。<a href="#pipeline" aria-label="返回流水线">返回</a></li>
+        <li id="fn-3" role="doc-footnote">本页由 code2arch 技能生成；代码演进后重新生成：运行同样的技能命令覆盖本文件，或手改各节——四张图的 SVG 与图解是成对的，改图请连同图解一起改。<a href="#overview" aria-label="返回主走查">返回</a></li>
+      </ol>
+    </footer>
+    <footer class="pagefoot">
+      <p>Cinematography IR · 架构总览 · 2026-08-28 生成 · 单文件自包含，双击即开 · 代码快照 commit 5d8e6b2 · 生成工具：code2arch（四静态检查 + 浏览器几何门禁 + 截图取证）</p>
+    </footer></div>
+  </div></main>
+<script data-doc-motion-runtime>
+/* 固定动效运行时 · templates/motion-runtime.js
+ * 契约：references/motion-contract.md。整个文件原样嵌入页面末尾的
+ * data-doc-motion-runtime 脚本块；审计按 SHA-256 核对，任何改动只能
+ * 落在本文件，页面级扩展写进 script[data-doc-motion-extension] 块并走例外条款。
+ * 依赖 <head> 首个脚本已声明 window.__docErrors / window.__docReady=false。
+ * 约束：vanilla ES2020；不用定时循环、不克隆节点、不注入标记文本、不发网络请求。 */
+(() => {
+  'use strict';
+  const doc = document, root = doc.documentElement;
+  const params = new URLSearchParams(location.search);
+  const wanted = params.get('motion');
+  const MODE = wanted === 'static' ? 'static' : wanted === 'flow' ? 'flow' : 'auto';
+  root.dataset.motion = MODE;
+  const STATIC = MODE === 'static';
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const AUTOPLAY = !STATIC && !REDUCED;             // 进场 / 逐步点亮是否自动播放
+  const PARTICLES = !STATIC && (MODE === 'flow' || !REDUCED);   // ?motion=flow 强制粒子
+  const FLOW_MS = 3200;                              // 全图同周期，只错相位（唯一字面量）
+  const $ = (sel, el = doc) => [...el.querySelectorAll(sel)];
+  const errors = window.__docErrors || (window.__docErrors = []);
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  let ok = false;
+
+  try {
+    /* ---- 逐步点亮：render 只画状态，seek 先停表再画，play 走 tick 链 ---- */
+    const timers = new WeakMap();                    // 每图一个待执行计时器
+    const seqs = $('figure.seq');
+    const stepsOf = fig => $('.step', fig);
+    const say = (fig, text) => {
+      const hint = fig.dataset.hint ? doc.getElementById(fig.dataset.hint) : null;
+      if (hint) hint.textContent = text;
     };
-    document.readyState === 'loading'
-      ? document.addEventListener('DOMContentLoaded', ready, { once: true })
-      : ready();
-  })();
-  </script>
-  <script data-code2arch-runtime-ready>
+    const label = (fig, k) => {
+      const steps = stepsOf(fig), N = steps.length;
+      if (k <= 0) return `共 ${N} 步`;
+      if (k >= N) return `全部 ${N} 步`;
+      return `第 ${k} / ${N} 步：${(steps[k - 1].getAttribute('aria-label') || '').trim()}`;
+    };
+    const dwell = step => {
+      const chars = (step.getAttribute('aria-label') || '').replace(/\s/g, '').length;
+      return Math.max(550, Math.min(1500, 550 + chars * 70));
+    };
+    const stop = fig => { clearTimeout(timers.get(fig)); timers.delete(fig); };
+    const render = (fig, n) => {
+      const steps = stepsOf(fig), N = steps.length, k = Math.max(0, Math.min(Number(n) || 0, N));
+      steps.forEach((s, i) => {
+        s.classList.toggle('done', k >= N || i < k - 1);
+        s.classList.toggle('cur', k < N && i === k - 1);
+      });
+      fig.classList.toggle('ended', k >= N);
+      fig.dataset.n = String(k);
+      fig.dataset.frame = STATIC ? 'static' : k <= 0 ? 'start' : k >= N ? 'end' : 'step';
+      return k;
+    };
+    const seek = (fig, n, user) => {                 // user=true：读者动作，写提示行
+      stop(fig);
+      const k = render(fig, n);
+      if (user) say(fig, label(fig, k));
+      return k;
+    };
+    const finishSeq = fig => { const k = seek(fig, stepsOf(fig).length); say(fig, label(fig, k)); };
+    const play = fig => {
+      stop(fig);
+      const steps = stepsOf(fig);
+      if (!steps.length) return;
+      render(fig, 0);
+      const tick = () => {
+        timers.delete(fig);
+        if (doc.visibilityState === 'hidden') return;          // 标签页隐藏即停，不追帧
+        const k = render(fig, Number(fig.dataset.n) + 1);
+        if (k >= steps.length) { say(fig, label(fig, k)); return; }
+        timers.set(fig, setTimeout(tick, dwell(steps[k - 1])));
+      };
+      timers.set(fig, setTimeout(tick, 340));                   // 首拍 = 进场跨度 240 + 100
+    };
+    seqs.forEach(fig => {
+      if (!fig.hasAttribute('tabindex')) fig.setAttribute('tabindex', '0');
+      if (!fig.hasAttribute('role')) fig.setAttribute('role', 'group');
+      const steps = stepsOf(fig);
+      steps.forEach((s, i) => {
+        ['mouseenter', 'focus'].forEach(ev => s.addEventListener(ev, () => s.classList.add('focus')));
+        ['mouseleave', 'blur'].forEach(ev => s.addEventListener(ev, () => s.classList.remove('focus')));
+        s.addEventListener('click', () => seek(fig, i + 1, true));
+      });
+      fig.addEventListener('keydown', e => {
+        const n = Number(fig.dataset.n) || 0;
+        const map = { ArrowRight: n + 1, ArrowLeft: n - 1, Home: 0, End: steps.length };
+        if (!Object.prototype.hasOwnProperty.call(map, e.key)) return;
+        e.preventDefault();
+        seek(fig, map[e.key], true);
+      });
+      const replay = fig.querySelector('.replay');
+      if (replay) replay.addEventListener('click', () => {
+        if (AUTOPLAY) { play(fig); return; }
+        seek(fig, 0, true);
+        say(fig, `系统已减少动效：用 ← / → 逐步查看（共 ${steps.length} 步）`);
+      });
+      if (AUTOPLAY) render(fig, 0);
+      else {
+        finishSeq(fig);
+        if (REDUCED && !STATIC) say(fig, `${label(fig, steps.length)} · 系统已减少动效，用 ← / → 逐步查看`);
+      }
+    });
+
+    /* ---- 边 draw-in：起笔前藏箭头并把 dash 设成路径全长，画完复位 inline dash ---- */
+    const anims = $('figure.anim');
+    const drawEdges = fig => $('path.edge.draw', fig);
+    const drawers = new WeakMap();
+    const finishEdge = p => {
+      p.classList.add('drawn');
+      if (p.dataset.marker && !p.getAttribute('marker-end')) p.setAttribute('marker-end', p.dataset.marker);
+      p.style.strokeDasharray = ''; p.style.strokeDashoffset = ''; p.style.transition = '';
+    };
+    const armEdge = p => {
+      const marker = p.getAttribute('marker-end');
+      if (marker && !p.dataset.marker) p.dataset.marker = marker;
+      p.removeAttribute('marker-end');                          // 箭头延迟落地
+      const len = p.getTotalLength();
+      p.style.transition = 'none';                              // 设初值时不触发过渡
+      p.style.strokeDasharray = String(len); p.style.strokeDashoffset = String(len);
+      void p.getBoundingClientRect();
+      p.style.transition = '';
+      let done = false;
+      const finish = () => { if (!done) { done = true; finishEdge(p); } };
+      p.addEventListener('transitionend', e => { if (e.propertyName === 'stroke-dashoffset') finish(); });
+      drawers.set(p, () => requestAnimationFrame(() => {
+        const cs = getComputedStyle(p);
+        const total = (parseFloat(cs.transitionDelay) || 0) + (parseFloat(cs.transitionDuration) || 0);
+        p.style.strokeDashoffset = '0';
+        setTimeout(finish, total * 1000 + 250);                 // transitionend 未触发时的收尾
+      }));
+    };
+    const reveal = fig => { fig.classList.add('in-view'); drawEdges(fig).forEach(p => { const go = drawers.get(p); if (go) go(); }); };
+    const settle = fig => { fig.classList.add('in-view'); drawEdges(fig).forEach(finishEdge); if (STATIC) fig.dataset.frame = 'static'; };
+
+    /* ---- 进场触发（一次）：IntersectionObserver，触发后 unobserve ---- */
+    if (AUTOPLAY) {
+      anims.forEach(fig => drawEdges(fig).forEach(armEdge));
+      const io = new IntersectionObserver(entries => entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        io.unobserve(entry.target);
+        if (entry.target.matches('figure.anim')) reveal(entry.target);
+        if (entry.target.matches('figure.seq')) play(entry.target);
+      }), { rootMargin: '0px 0px -15% 0px' });
+      anims.forEach(fig => io.observe(fig));
+      seqs.forEach(fig => io.observe(fig));
+    } else {
+      anims.forEach(settle);
+    }
+
+    /* ---- 焦点降噪：压暗其余（.dim），不是只加亮邻居 ---- */
+    anims.forEach(fig => {
+      const nodes = $('[data-node]', fig);
+      if (nodes.length < 2) return;
+      const edges = $('[data-from][data-to]', fig);
+      const set = (id, on) => {
+        fig.classList.toggle('hl', on);
+        const near = new Set([id]);
+        edges.forEach(e => { if (e.dataset.from === id) near.add(e.dataset.to); if (e.dataset.to === id) near.add(e.dataset.from); });
+        nodes.forEach(n => n.classList.toggle('dim', on && !near.has(n.dataset.node)));
+        edges.forEach(e => {
+          const hit = on && (e.dataset.from === id || e.dataset.to === id);
+          e.classList.toggle('hl', hit); e.classList.toggle('dim', on && !hit);
+        });
+      };
+      nodes.forEach(n => {
+        if (!n.hasAttribute('tabindex')) n.setAttribute('tabindex', '0');
+        ['mouseenter', 'focus'].forEach(ev => n.addEventListener(ev, () => set(n.dataset.node, true)));
+        ['mouseleave', 'blur'].forEach(ev => n.addEventListener(ev, () => set(n.dataset.node, false)));
+      });
+    });
+
+    /* ---- 图文联动：click / Enter 滚到讲它的段落并高亮 1.2s ---- */
+    $('[data-explains]').forEach(n => {
+      if (!n.hasAttribute('tabindex')) n.setAttribute('tabindex', '0');
+      const go = () => {
+        const target = doc.getElementById(n.dataset.explains);
+        if (!target) return;
+        target.scrollIntoView({ behavior: AUTOPLAY ? 'smooth' : 'auto', block: 'center' });
+        target.classList.add('flash');
+        setTimeout(() => target.classList.remove('flash'), 1200);
+      };
+      n.addEventListener('click', go);
+      n.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+    });
+
+    /* ---- 谱系聚焦：图例按钮 hover / focus 临时、click 固定、Escape 恢复 ---- */
+    $('figure').filter(fig => fig.querySelector('[data-lineage-focus]')).forEach(fig => {
+      const keys = $('[data-lineage-focus]', fig);
+      let pinned = '';
+      const show = id => {
+        $('[data-lineage]', fig).forEach(el => {          // 每次重查，让后生成的粒子也参与
+          el.classList.toggle('is-active', Boolean(id) && el.dataset.lineage === id);
+          el.classList.toggle('dim', Boolean(id) && el.dataset.lineage !== id);
+        });
+        keys.forEach(k => k.setAttribute('aria-pressed', String(Boolean(pinned) && k.dataset.lineageFocus === pinned)));
+      };
+      keys.forEach(k => {
+        const id = k.dataset.lineageFocus;
+        ['mouseenter', 'focus'].forEach(ev => k.addEventListener(ev, () => { if (!pinned) show(id); }));
+        ['mouseleave', 'blur'].forEach(ev => k.addEventListener(ev, () => { if (!pinned) show(''); }));
+        k.addEventListener('click', () => { pinned = pinned === id ? '' : id; show(pinned); });
+      });
+      fig.addEventListener('keydown', e => { if (e.key === 'Escape') { pinned = ''; show(''); } });
+    });
+
+    /* ---- 流粒子：沿 [data-flow] 轨道循环，全图同周期只错相位；粒子 aria-hidden ---- */
+    const flowState = [];
+    if (PARTICLES) {
+      const groups = new Map();
+      $('[data-flow]').filter(p => p.dataset.flowAuto !== 'false' && typeof p.getTotalLength === 'function').forEach(p => {
+        const key = p.closest('figure') || p.ownerSVGElement;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(p);
+      });
+      const dots = [];
+      groups.forEach((paths, key) => paths.forEach((p, i) => {
+        const dot = doc.createElementNS(SVG_NS, 'circle');
+        dot.setAttribute('r', '3.5'); dot.setAttribute('class', 'flow-dot'); dot.setAttribute('aria-hidden', 'true');
+        if (p.dataset.lineage) dot.dataset.lineage = p.dataset.lineage;
+        if (p.dataset.flowColor) dot.style.fill = p.dataset.flowColor;
+        p.parentNode.appendChild(dot);
+        const phase = (i * FLOW_MS) / paths.length;
+        dots.push({ p, dot, len: p.getTotalLength(), phase });
+        flowState.push({ fig: key && key.id ? key.id : '', dur: FLOW_MS, phase });
+      }));
+      if (dots.length) {
+        const t0 = performance.now();
+        const frame = t => {
+          dots.forEach(d => {
+            const pt = d.p.getPointAtLength((((t - t0 + d.phase) % FLOW_MS) / FLOW_MS) * d.len);
+            d.dot.setAttribute('cx', pt.x.toFixed(2)); d.dot.setAttribute('cy', pt.y.toFixed(2));
+          });
+          requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      }
+    }
+
+    /* ---- 插图查看器：原生 <dialog>，移动 SVG 节点而不克隆，关闭时归还 ---- */
+    const el = (tag, attrs, ...kids) => {
+      const node = doc.createElement(tag);
+      Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+      node.append(...kids);
+      return node;
+    };
+    let dialog = doc.querySelector('dialog.figure-lightbox');
+    if (!dialog) {
+      dialog = el('dialog', { class: 'figure-lightbox', 'aria-label': '插图查看器' },
+        el('div', { class: 'zoom-shell' },
+          el('div', { class: 'zoom-toolbar' },
+            el('span', { class: 'zoom-caption' }),
+            el('div', { class: 'zoom-controls', 'aria-label': '缩放控制' },
+              el('button', { type: 'button', 'data-zoom-out': '', 'aria-label': '缩小' }, '−'),
+              el('button', { type: 'button', 'data-zoom-fit': '', 'aria-label': '适合窗口' }, '适配'),
+              el('button', { type: 'button', 'data-zoom-actual': '', 'aria-label': '恢复百分之百' }, '100%'),
+              el('button', { type: 'button', 'data-zoom-in': '', 'aria-label': '放大' }, '＋'),
+              el('button', { type: 'button', class: 'zoom-close', 'data-zoom-close': '', 'aria-label': '关闭' }, '×'))),
+          el('div', { class: 'zoom-viewport', tabindex: '0', 'aria-label': '可滚动的放大插图' },
+            el('div', { class: 'zoom-stage' }))));
+      doc.body.append(dialog);
+    }
+    const viewport = dialog.querySelector('.zoom-viewport');
+    const stage = dialog.querySelector('.zoom-stage');
+    const caption = dialog.querySelector('.zoom-caption');
+    const captionOf = figure => {
+      const cap = figure.querySelector('figcaption');
+      if (!cap) return '插图';
+      return [...cap.childNodes]
+        .filter(n => !(n.nodeType === 1 && n.matches('.figure-controls, .replay, .step-hint')))
+        .map(n => n.textContent).join('').trim() || '插图';
+    };
+    let active = null, placeholder = null, previousFocus = null, originalStyle = null;
+    let baseWidth = 0, baseHeight = 0, scale = 1;
+    const clamp = value => Math.min(4, Math.max(.25, value));
+    const zoomTo = value => {
+      if (!active) return;
+      scale = clamp(value);
+      const width = baseWidth * scale, height = baseHeight * scale;
+      active.style.width = `${width}px`; active.style.height = `${height}px`;
+      stage.style.width = `${Math.max(viewport.clientWidth, width + 48)}px`;
+      stage.style.height = `${Math.max(viewport.clientHeight, height + 48)}px`;
+      dialog.dataset.scale = scale.toFixed(3);
+    };
+    const fit = () => zoomTo(Math.min((viewport.clientWidth - 48) / baseWidth, (viewport.clientHeight - 48) / baseHeight));
+    const close = () => {
+      if (!active) return;
+      placeholder.replaceWith(active);
+      if (originalStyle === null) active.removeAttribute('style'); else active.setAttribute('style', originalStyle);
+      active = null; placeholder = null; doc.body.classList.remove('figure-zoom-open');
+      if (dialog.open) dialog.close();
+      if (previousFocus) previousFocus.focus();
+    };
+    const open = figure => {
+      const media = figure && figure.querySelector('svg, img');
+      if (!media) return false;
+      if (active) close();
+      previousFocus = doc.activeElement;
+      const box = media.getBoundingClientRect();
+      const viewBox = media.tagName.toLowerCase() === 'svg' ? media.viewBox.baseVal : null;
+      baseWidth = (viewBox && viewBox.width) || media.naturalWidth || box.width;
+      baseHeight = (viewBox && viewBox.height) || media.naturalHeight || box.height;
+      originalStyle = media.getAttribute('style');
+      placeholder = el('div', { class: 'zoom-placeholder', 'aria-hidden': 'true' });
+      placeholder.style.height = `${box.height}px`;
+      media.replaceWith(placeholder); active = media; stage.append(media);
+      caption.textContent = captionOf(figure);
+      doc.body.classList.add('figure-zoom-open');
+      dialog.showModal();
+      requestAnimationFrame(() => { fit(); viewport.scrollTo(0, 0); viewport.focus(); });
+      return true;
+    };
+    const zoomables = $('figure').filter(figure => figure.querySelector('svg') && !dialog.contains(figure));
+    zoomables.forEach((figure, index) => {
+      figure.classList.add('zoomable');
+      const button = el('button', { type: 'button', class: 'figure-zoom-trigger', 'aria-label': `放大查看图 ${index + 1}`, title: `放大查看图 ${index + 1}` });
+      button.addEventListener('click', () => open(figure));
+      figure.append(button);
+    });
+    dialog.querySelector('[data-zoom-out]').addEventListener('click', () => zoomTo(scale / 1.25));
+    dialog.querySelector('[data-zoom-in]').addEventListener('click', () => zoomTo(scale * 1.25));
+    dialog.querySelector('[data-zoom-actual]').addEventListener('click', () => zoomTo(1));
+    dialog.querySelector('[data-zoom-fit]').addEventListener('click', fit);
+    dialog.querySelector('[data-zoom-close]').addEventListener('click', close);
+    dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
+    dialog.addEventListener('click', e => { if (e.target === dialog) close(); });
+    viewport.addEventListener('wheel', e => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault(); zoomTo(scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
+    }, { passive: false });
+    doc.addEventListener('keydown', e => {
+      if (!dialog.open) return;
+      if (e.key === '+' || e.key === '=') zoomTo(scale * 1.25);
+      else if (e.key === '-') zoomTo(scale / 1.25);
+      else if (e.key === '0') zoomTo(1);
+      else if (e.key.toLowerCase() === 'f') fit();
+    });
+    window.addEventListener('resize', () => { if (dialog.open) fit(); });
+    window.__figureZoom = {
+      open: index => open(zoomables[index]), close, fit, actual: () => zoomTo(1), scale: zoomTo,
+      state: () => ({ open: dialog.open, scale, hasFigure: Boolean(active) }),
+    };
+
+    /* ---- 打印、页面隐藏与取证探针（不产生 UI） ---- */
+    window.addEventListener('beforeprint', () => { anims.forEach(settle); seqs.forEach(finishSeq); });
+    doc.addEventListener('visibilitychange', () => { if (doc.visibilityState === 'hidden') seqs.forEach(stop); });
+    window.__seqSeek = (id, n) => {
+      const fig = doc.getElementById(String(id));
+      return fig && fig.matches('figure.seq') ? seek(fig, Number(n), true) : -1;
+    };
+    window.__flowState = () => flowState.map(s => ({ fig: s.fig, dur: s.dur, phase: s.phase }));
+    ok = true;
+  } catch (error) {
+    errors.push(`motion-runtime: ${String(error && error.stack || error)}`);
+  }
+
+  /* 失效安全：只有全部绑定成功才允许 CSS 隐藏初态；失败时完整静态源保持可见。 */
+  if (ok) {
+    root.classList.add('motion-ready');
     window.__docReady = true;
+  }
+})();
+
   </script>
 </body>
 </html>
