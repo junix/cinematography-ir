@@ -5,7 +5,7 @@ use cinematography_ir::solve::SolvedCameraFrame;
 use cinematography_ir::view::project::FrameProjection;
 use cinematography_ir::{
     load_project, normalize_units, solve_project, CameraOperation, CameraRig, CineProject,
-    Fidelity, GeometryProxy, SolveError, SolveOptions, SolvedProject, TargetRef,
+    Fidelity, GeometryProxy, Severity, SolveError, SolveOptions, SolvedProject, TargetRef,
 };
 
 fn example(name: &str) -> PathBuf {
@@ -396,6 +396,17 @@ scenes:
             .x
     }
     assert!((sample(24) - sample(60)).abs() < 0.02);
+    // Frame-rate independence alone would also hold for a camera that never
+    // moves: the lag itself must match the declared half-life. The subject
+    // runs at 1 m/s, so after 1 s the camera must have tracked to within
+    // ~v·half_life/ln2 ≈ 0.26 m of the target.
+    for (fps, value) in [(24, sample(24)), (60, sample(60))] {
+        let lag = 1.0 - value;
+        assert!(
+            (0.15..0.35).contains(&lag),
+            "{fps} fps: camera at {value} m, lag {lag} m does not match a 0.18 s half-life"
+        );
+    }
 }
 
 #[test]
@@ -705,7 +716,16 @@ fn full_fidelity_runs_and_invalid_documents_are_rejected() {
         .subject_ids
         .push("nobody".to_owned());
     match solve_project(&project, &SolveOptions::default()) {
-        Err(SolveError::Invalid(report)) => assert!(report.has_errors()),
+        Err(SolveError::Invalid(report)) => {
+            assert!(report.has_errors());
+            assert!(
+                report.diagnostics.iter().any(|diagnostic| diagnostic.code
+                    == "FRAMING_SUBJECT_UNKNOWN"
+                    && diagnostic.severity == Severity::Error),
+                "the unknown framing subject must be named: {:#?}",
+                report.diagnostics
+            );
+        }
         other => panic!("expected validation failure, got {other:?}"),
     }
 }
