@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use cinematography_ir::compiled::{ConstraintStatus, PhaseKind, ShotConstraintKind};
+use cinematography_ir::compiled::{ConstraintStatus, PhaseKind, ShotConstraintKind, Trend};
 use cinematography_ir::{
-    compile_project, load_project, CompileOptions, CompiledProject, ShotPhrase,
+    compile_project, load_project, CompileOptions, CompiledProject, Prohibition, ShotPhrase,
 };
 
 fn example(name: &str) -> PathBuf {
@@ -63,17 +63,37 @@ fn jaws_compiles_phases_screen_constraints_and_prohibitions() {
             .status,
         ConstraintStatus::Pass
     );
-    assert!(shot.constraints.iter().any(|constraint| matches!(
-        constraint.kind,
-        ShotConstraintKind::PairScreenSeparation { .. }
-    )));
-    assert!(shot
-        .prohibitions
-        .contains(&cinematography_ir::Prohibition::DigitalCropAsDollySubstitute));
-    assert!(shot
-        .intent
-        .phrases
-        .contains(&ShotPhrase::SubjectLockDollyZoom));
+    // The authored background depth layer contributes exactly one separation
+    // constraint: its first two subjects, locked to an increasing trend.
+    let separations: Vec<&ShotConstraintKind> = shot
+        .constraints
+        .iter()
+        .map(|constraint| &constraint.kind)
+        .filter(|kind| matches!(kind, ShotConstraintKind::PairScreenSeparation { .. }))
+        .collect();
+    assert_eq!(
+        separations,
+        vec![&ShotConstraintKind::PairScreenSeparation {
+            subject_ids: [
+                "left_beachgoer".to_owned(),
+                "right_beachgoer".to_owned()
+            ],
+            trend: Trend::Increasing,
+        }]
+    );
+    // The shot authors no extra prohibitions: the dolly zoom alone contributes
+    // its four guards, in BTreeSet (declaration) order.
+    assert_eq!(
+        shot.prohibitions,
+        vec![
+            Prohibition::ActorTranslationAsCameraSubstitute,
+            Prohibition::DigitalCropAsDollySubstitute,
+            Prohibition::HandheldMotion,
+            Prohibition::UnplannedCut,
+        ]
+    );
+    // Likewise the shot authors no phrases: the dolly zoom derives exactly one.
+    assert_eq!(shot.intent.phrases, vec![ShotPhrase::SubjectLockDollyZoom]);
     assert_eq!(shot.screen_tracks.len(), 3);
     assert_eq!(shot.screen_tracks[0].frames.len(), 192);
 }
