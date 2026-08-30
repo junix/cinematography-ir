@@ -101,13 +101,40 @@ fn payload_converts_cameras_and_subjects_into_blender_space() {
 #[test]
 fn depth_bounds_bracket_all_subject_distances() {
     let solved = solved("dolly_zoom.yaml");
-    let payload = build_payload(&solved, &solved.scenes[0]);
+    let scene = &solved.scenes[0];
+    let payload = build_payload(&solved, scene);
     assert!(payload.render.depth_near_m < 2.2 && payload.render.depth_near_m >= 0.1);
     assert!(
         payload.render.depth_far_m > 8.5,
         "{}",
         payload.render.depth_far_m
     );
+
+    // The bounds come from this scene's own subject distances: every sampled
+    // distance must fall inside the bracket, at exactly min/2 (floored at
+    // 0.1 m) and 1.5·max + 2 m respectively.
+    let mut min = f32::INFINITY;
+    let mut max: f32 = 0.0;
+    for shot in &scene.shots {
+        for frame in &shot.frames {
+            for track in &scene.subjects {
+                let d = (track.transform_at(frame.frame).position - frame.position).length();
+                assert!(
+                    payload.render.depth_near_m <= d && d <= payload.render.depth_far_m,
+                    "distance {d} at frame {} outside [{}, {}]",
+                    frame.frame,
+                    payload.render.depth_near_m,
+                    payload.render.depth_far_m
+                );
+                min = min.min(d);
+                max = max.max(d);
+            }
+        }
+    }
+    let near = (min * 0.5).max(0.1);
+    let far = (max * 1.5 + 2.0).max(near + 1.0);
+    assert!((payload.render.depth_near_m - near).abs() < 1e-4, "{near}");
+    assert!((payload.render.depth_far_m - far).abs() < 1e-4, "{far}");
 }
 
 #[test]
@@ -376,11 +403,36 @@ fn pass_names_round_trip() {
     for pass in ConditioningPass::ALL {
         assert_eq!(ConditioningPass::parse(pass.name()), Some(pass));
     }
-    assert!(ConditioningPass::parse_list("depth,bogus").is_err());
-    assert!(ConditioningPass::parse_list("").is_err());
+    // Names are matched case-insensitively, with whitespace and aliases.
+    assert_eq!(
+        ConditioningPass::parse(" Depth "),
+        Some(ConditioningPass::Depth)
+    );
+    assert_eq!(
+        ConditioningPass::parse("METRIC_DEPTH"),
+        Some(ConditioningPass::DepthMetric)
+    );
+    assert_eq!(
+        ConditioningPass::parse_list("depth,bogus").unwrap_err(),
+        "unknown pass 'bogus'",
+        "the error must name the rejected pass"
+    );
+    assert_eq!(
+        ConditioningPass::parse_list("").unwrap_err(),
+        "at least one pass is required"
+    );
     assert_eq!(
         ConditioningPass::parse_list("depth, depth ,seg").unwrap(),
         vec![ConditioningPass::Depth, ConditioningPass::ObjectIndex]
+    );
+    // Aliases of the same pass collapse to one entry, keeping first-seen order.
+    assert_eq!(
+        ConditioningPass::parse_list("z,flow, depth ,openpose,pose").unwrap(),
+        vec![
+            ConditioningPass::Depth,
+            ConditioningPass::Vector,
+            ConditioningPass::OpenPose
+        ]
     );
 }
 
@@ -397,6 +449,26 @@ fn checked_in_execution_profiles_are_strict_and_adapter_compatible() {
         let profile: ExecutionProfile =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert!(!profile.passes.is_empty(), "{name}");
+        // Each pass must own a distinct, non-empty file pattern: two passes
+        // writing the same pattern would silently overwrite each other.
+        let mut patterns: Vec<&str> = profile
+            .passes
+            .iter()
+            .map(|pass| pass.file_pattern.as_str())
+            .collect();
+        assert!(
+            patterns.iter().all(|pattern| !pattern.is_empty()),
+            "{name}: empty file pattern"
+        );
+        let unique = |values: &mut Vec<&str>| {
+            values.sort_unstable();
+            let before = values.len();
+            values.dedup();
+            before == values.len()
+        };
+        assert!(unique(&mut patterns), "{name}: duplicate file patterns");
+        let mut kinds: Vec<&str> = profile.passes.iter().map(|pass| pass.kind.name()).collect();
+        assert!(unique(&mut kinds), "{name}: duplicate pass kinds");
         let adapter = BlenderAdapter::default();
         let capabilities = adapter.capabilities();
         assert!(

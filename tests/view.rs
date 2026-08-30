@@ -830,6 +830,18 @@ fn semantic_canvas_primitives_lower_into_svg_and_ascii() {
     assert!(svg.contains("data:image/png;base64,"));
     let ascii = cinematography_ir::view::encode::canvas_to_ascii(&canvas, 60);
     assert!(!ascii.is_empty());
+    // 60 columns over 120 units → 2×4 cells, so 80 units = 20 rows. The
+    // dotted image rect lands in the top-left cells and the Symbols pass
+    // stamps the centre marker over the first corner.
+    let lines: Vec<&str> = ascii.lines().collect();
+    assert_eq!(lines.len(), 20, "{ascii}");
+    assert_eq!(lines[0], " I+", "embedded image lowers to 'I': {ascii}");
+    assert_eq!(lines[1], " ++");
+    // Line work only ever emits -|/\\; arrow characters come solely from
+    // arrow heads: two pointing right (both vector-field and cubic heads)
+    // and one pointing left.
+    assert_eq!(ascii.matches('>').count(), 2, "{ascii}");
+    assert_eq!(ascii.matches('<').count(), 1, "{ascii}");
 }
 
 #[test]

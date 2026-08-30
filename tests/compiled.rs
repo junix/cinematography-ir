@@ -106,7 +106,44 @@ fn compiled_lighting_and_exposure_retain_authored_intent() {
         .unwrap()
         .compiled;
     let scene = &compiled.scenes[0];
-    assert!(!scene.light_tracks.is_empty());
+    // One track per authored light source, carrying the authored values.
+    let authored: Vec<_> = project.scenes[0]
+        .lighting_setups
+        .iter()
+        .flat_map(|setup| {
+            setup.sources.iter().map(move |source| {
+                (
+                    setup.id.clone(),
+                    source.id.clone(),
+                    source.kind,
+                    source.role,
+                    source.intensity_lux,
+                    source.color_temperature_k,
+                )
+            })
+        })
+        .collect();
+    assert_eq!(scene.light_tracks.len(), authored.len());
+    for (track, (setup_id, source_id, kind, role, intensity_lux, temperature_k)) in
+        scene.light_tracks.iter().zip(authored)
+    {
+        assert_eq!(
+            (track.setup_id.as_str(), track.source_id.as_str()),
+            (setup_id.as_str(), source_id.as_str()),
+        );
+        assert_eq!((track.kind, track.role), (kind, role));
+        assert_eq!(
+            track.frames.len() as u64,
+            scene.duration_frames,
+            "{} must span the whole scene",
+            source_id
+        );
+        for (index, frame) in track.frames.iter().enumerate() {
+            assert_eq!(frame.frame, index as u64, "sequential frame numbering");
+            assert_eq!(frame.intensity_lux, intensity_lux);
+            assert_eq!(frame.color_temperature_k, temperature_k);
+        }
+    }
     let shot = scene
         .shots
         .iter()

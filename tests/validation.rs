@@ -58,8 +58,27 @@ frame_rate: { numerator: 24 }
 focal_lenght_mm: 50
 scenes: []
 "#;
-    let result = serde_yaml::from_str::<CineProject>(source);
-    assert!(result.is_err());
+    let error = serde_yaml::from_str::<CineProject>(source)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("unknown field") && error.contains("focal_lenght_mm"),
+        "the error must name the rejected field: {error}"
+    );
+
+    // Nested documents reject unknown fields with the same precision.
+    let nested = source.replacen("focal_lenght_mm: 50\n", "", 1).replacen(
+        "scenes: []",
+        "scenes:\n  - id: scene\n    title: Scene\n    duration_frames: 24\n    extra_key: 1",
+        1,
+    );
+    let error = serde_yaml::from_str::<CineProject>(&nested)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("unknown field") && error.contains("extra_key"),
+        "{error}"
+    );
 }
 
 #[test]

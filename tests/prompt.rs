@@ -56,6 +56,19 @@ fn every_example_shot_gets_a_clean_prompt() {
     ] {
         let all = prompts(name, &PromptOptions::default());
         assert!(!all.is_empty(), "{name}");
+        let project = load_project(example(name)).unwrap();
+        let mut authored: Vec<String> = project
+            .scenes
+            .iter()
+            .flat_map(|scene| scene.shots.iter().map(|shot| shot.id.clone()))
+            .collect();
+        authored.sort();
+        let mut prompted: Vec<String> = all.iter().map(|(id, _)| id.clone()).collect();
+        prompted.sort();
+        assert_eq!(
+            prompted, authored,
+            "{name}: every authored shot must get exactly one prompt"
+        );
         for (shot, text) in &all {
             assert!(!text.trim().is_empty(), "{name}/{shot}");
             assert_no_raw_identifiers(text);
