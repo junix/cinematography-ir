@@ -396,6 +396,15 @@ fn frame_ranges_outside_the_scene_are_rejected() {
         serde_json::from_str(&std::fs::read_to_string(&output.scenes[0].manifest_path).unwrap())
             .unwrap();
     assert_eq!(manifest["frame_range"], serde_json::json!([100, 119]));
+
+    // No requested range: the whole scene renders, first to last frame.
+    let output = adapter
+        .render_passes(None, &[ConditioningPass::Depth], &out)
+        .unwrap();
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&output.scenes[0].manifest_path).unwrap())
+            .unwrap();
+    assert_eq!(manifest["frame_range"], serde_json::json!([0, 119]));
 }
 
 #[test]

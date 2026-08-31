@@ -474,4 +474,99 @@ mod tests {
         let mut b = 7;
         assert_eq!(splitmix64(&mut a), splitmix64(&mut b));
     }
+
+    #[test]
+    fn zero_directions_are_rejected_not_wrapped() {
+        for cs in [right_handed(), left_handed_unity()] {
+            assert!(
+                look_direction_to_yaw_pitch(&cs, Vec3::ZERO).is_none(),
+                "{cs:?}: a zero direction has no yaw/pitch"
+            );
+            assert!(
+                to_spherical(&cs, Vec3::ZERO).is_none(),
+                "{cs:?}: a zero offset has no spherical decomposition"
+            );
+        }
+    }
+
+    #[test]
+    fn looking_straight_up_keeps_yaw_at_zero() {
+        for cs in [right_handed(), left_handed_unity()] {
+            let id = identity_basis(&cs);
+            let (yaw, pitch) = look_direction_to_yaw_pitch(&cs, id.up).unwrap();
+            assert!(
+                yaw.abs() < 1e-4,
+                "{cs:?}: no horizontal component, so yaw stays 0: {yaw}"
+            );
+            assert!((pitch - 90.0).abs() < 1e-3, "{cs:?} pitch {pitch}");
+        }
+    }
+
+    #[test]
+    fn wrap_deg_stays_in_the_minus_180_to_180_range() {
+        // Documented range is (-180, 180]: the +180 boundary maps to itself
+        // from both sides, and full turns collapse to zero.
+        for (value, expected) in [
+            (0.0, 0.0),
+            (180.0, 180.0),
+            (-180.0, 180.0),
+            (540.0, 180.0),
+            (-540.0, 180.0),
+            (360.0, 0.0),
+            (-360.0, 0.0),
+            (190.0, -170.0),
+            (-190.0, 170.0),
+        ] {
+            assert!(
+                (wrap_deg(value) - expected).abs() < 1e-5,
+                "wrap_deg({value}) != {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn lerp_angle_deg_reaches_both_endpoints_through_the_wrap() {
+        assert_eq!(lerp_angle_deg(350.0, 10.0, 0.0), 350.0);
+        // The output continues through the wrap without renormalising
+        // (the midpoint is 360, not 0), so t=1 lands on 370 ≡ 10 (mod 360).
+        let end = lerp_angle_deg(350.0, 10.0, 1.0);
+        assert!((end - 370.0).abs() < 1e-4, "{end}");
+        assert!((wrap_deg(end) - 10.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn normalized_rejects_zero_and_sub_threshold_vectors() {
+        assert!(Vec3::ZERO.normalized().is_none());
+        assert!(
+            Vec3::new(1e-8, 0.0, 0.0).normalized().is_none(),
+            "length 1e-8 is numerically zero"
+        );
+        let unit = Vec3::new(3.0, 4.0, 0.0).normalized().unwrap();
+        assert!((unit.x - 0.6).abs() < 1e-6 && (unit.y - 0.8).abs() < 1e-6);
+        assert!((unit.length() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn unit_float_maps_the_top_bits_into_the_half_open_unit_interval() {
+        assert_eq!(unit_float(0), 0.0);
+        // Only the top 24 bits count: bit 40 is the first step.
+        assert_eq!(unit_float(1u64 << 40), 1.0 / (1u64 << 24) as f32);
+        let largest = unit_float(u64::MAX);
+        assert!(
+            largest < 1.0 && (largest - 1.0).abs() < 1e-6,
+            "the maximum input stays strictly below 1.0: {largest}"
+        );
+    }
+
+    #[test]
+    fn horizontal_direction_quarter_turns_left_in_both_handednesses() {
+        for cs in [right_handed(), left_handed_unity()] {
+            let id = identity_basis(&cs);
+            assert!(approx(horizontal_direction(&cs, 0.0), id.forward), "{cs:?}");
+            assert!(
+                approx(horizontal_direction(&cs, 90.0), -id.right),
+                "{cs:?}: +90° azimuth turns left, matching +yaw"
+            );
+        }
+    }
 }
