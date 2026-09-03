@@ -3,3 +3,8 @@
 .DS_Store
 *.swp
 __pycache__/
+# --- appended by gitignore-sweep on 2026-09-03 ---
+/target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
