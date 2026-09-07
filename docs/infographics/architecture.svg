@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" xml:lang="zh-CN" aria-labelledby="svg-title svg-desc">
+<title id="svg-title">cinematography-ir 架构：意图进门，编译出腰</title>
+<desc id="svg-desc">作者意图以 YAML 或 JSON 进入，经 validate、analyze、compile 收成一份编译 IR；prompt、view、render 只消费这份产物。</desc>
+<defs>
+<marker id="arrow-flow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,4 L0,8 Z" fill="#356A79"/></marker>
+<marker id="arrow-warn" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,4 L0,8 Z" fill="#E76F51"/></marker>
+<marker id="arrow-muted" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,4 L0,8 Z" fill="#5D6873"/></marker>
+</defs>
+<rect id="page" x="0" y="0" width="1280" height="720" fill="#F7F4EE"/>
+<ellipse id="zone-waist" cx="1072.0" cy="352.0" rx="132" ry="86" fill="#DDF2EC"/>
+<line id="boundary-consume" x1="860" y1="468" x2="980" y2="468" stroke="#5D6873" stroke-width="1.2" stroke-dasharray="5 4"/>
+<path id="spine-intent-validate" d="M 224.0,341.0 H 300.0 Q 308.0,341.0 308.0,333.0 V 304.0 Q 308.0,296.0 316.0,296.0 H 374.0" fill="none" stroke="#D9E1E3" stroke-width="16" stroke-linecap="butt" stroke-linejoin="round"/>
+<path id="spine-validate-analyze" d="M 410.0,296.0 H 492.0 Q 500.0,296.0 500.0,304.0 V 424.0 Q 500.0,432.0 508.0,432.0 H 590.0" fill="none" stroke="#D9E1E3" stroke-width="16" stroke-linecap="butt" stroke-linejoin="round"/>
+<path id="spine-analyze-compile" d="M 626.0,432.0 H 708.0 Q 716.0,432.0 716.0,424.0 V 304.0 Q 716.0,296.0 724.0,296.0 H 806.0" fill="none" stroke="#D9E1E3" stroke-width="16" stroke-linecap="butt" stroke-linejoin="round"/>
+<path id="spine-compile-ir" d="M 842.0,296.0 H 920.0 Q 928.0,296.0 928.0,304.0 V 344.0 Q 928.0,352.0 936.0,352.0 H 970.0" fill="none" stroke="#D9E1E3" stroke-width="16" stroke-linecap="butt" stroke-linejoin="round"/>
+<path id="edge-fail" d="M 392.0,314.0 V 500.0" fill="none" stroke="#E76F51" stroke-width="1.5" stroke-linecap="butt" stroke-linejoin="round" marker-end="url(#arrow-warn)"/>
+<path id="edge-warn" d="M 608.0,450.0 V 500.0" fill="none" stroke="#5D6873" stroke-width="1.4" stroke-linecap="butt" stroke-linejoin="round" stroke-dasharray="6 4" marker-end="url(#arrow-muted)"/>
+<path id="edge-prompt" d="M 1032.0,408.0 V 533.0 Q 1032.0,541.0 1024.0,541.0 H 928.0" fill="none" stroke="#356A79" stroke-width="1.7" stroke-linecap="butt" stroke-linejoin="round" marker-end="url(#arrow-flow)"/>
+<path id="edge-view" d="M 1072.0,408.0 V 561.0" fill="none" stroke="#356A79" stroke-width="1.7" stroke-linecap="butt" stroke-linejoin="round" marker-end="url(#arrow-flow)"/>
+<path id="edge-render" d="M 1112.0,408.0 V 533.0 Q 1112.0,541.0 1120.0,541.0 H 1196.0" fill="none" stroke="#356A79" stroke-width="1.7" stroke-linecap="butt" stroke-linejoin="round" marker-end="url(#arrow-flow)"/>
+<text x="56.0" y="52.0" fill="#356A79" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="13" font-weight="700" text-anchor="start" id="kicker">电影摄影中间表示 · cinematography-ir</text>
+<text x="56.0" y="90.0" fill="#17212B" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="28" font-weight="700" text-anchor="start" id="hero-title">意图进门，编译出腰</text>
+<text x="56.0" y="122.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="14" font-weight="400" text-anchor="start" id="hero-thesis-1">作者意图以 YAML / JSON 进入，经 validate、analyze、compile 收成一份编译 IR。</text>
+<text x="56.0" y="144.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="14" font-weight="400" text-anchor="start" id="hero-thesis-2">prompt、view、render 只消费这份产物，不再重解镜头理由。</text>
+<text x="1224.0" y="52.0" fill="#356A79" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="13" font-weight="700" text-anchor="end" id="fingerprint">意图进门 · 编译出腰</text>
+<text x="860.0" y="456.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="13" font-weight="400" text-anchor="start" id="label-boundary">虚线以下为下游消费</text>
+<text x="56.0" y="396.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="400" text-anchor="start" id="note-intent-bits">叙事 · 调度 · 镜头 · 运镜 · 连续性</text>
+<text x="392.0" y="266.0" fill="#17212B" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="15" font-weight="700" text-anchor="middle" id="label-validate">validate</text>
+<text x="392.0" y="248.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="400" text-anchor="middle" id="sub-validate">结构与引用</text>
+<text x="580.0" y="418.0" fill="#17212B" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="15" font-weight="700" text-anchor="end" id="label-analyze">analyze</text>
+<text x="580.0" y="400.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="400" text-anchor="end" id="sub-analyze">连续性</text>
+<text x="824.0" y="266.0" fill="#17212B" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="15" font-weight="700" text-anchor="middle" id="label-compile">compile</text>
+<text x="824.0" y="248.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="400" text-anchor="middle" id="sub-compile">收成窄腰</text>
+<text x="928.0" y="578.0" fill="#17212B" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="14" font-weight="700" text-anchor="middle" id="label-prompt">prompt</text>
+<text x="1072.0" y="598.0" fill="#17212B" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="14" font-weight="700" text-anchor="middle" id="label-view">view</text>
+<text x="1196.0" y="578.0" fill="#17212B" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="14" font-weight="700" text-anchor="middle" id="label-render">render</text>
+<text x="236.0" y="326.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="13" font-weight="400" text-anchor="start" id="el-submit">提交意图</text>
+<text x="524.0" y="356.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="13" font-weight="400" text-anchor="start" id="el-ok">结构通过</text>
+<text x="732.0" y="356.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="13" font-weight="400" text-anchor="start" id="el-diag">带诊断继续</text>
+<text x="938.0" y="318.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="13" font-weight="400" text-anchor="start" id="el-waist">产出窄腰</text>
+<text x="928.0" y="596.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="400" text-anchor="middle" id="el-prompt">时间命令</text>
+<text x="1072.0" y="616.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="400" text-anchor="middle" id="el-view">审片图</text>
+<text x="1196.0" y="596.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="400" text-anchor="middle" id="el-render">拍摄通道</text>
+<text x="404.0" y="470.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="13" font-weight="400" text-anchor="start" id="el-fail">结构失败</text>
+<text x="620.0" y="518.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="400" text-anchor="start" id="note-warn">警告不是禁令；故意越轴须写明</text>
+<circle id="mark-reject" cx="392.0" cy="508.0" r="3.5" fill="#E76F51"/>
+<text x="404.0" y="512.0" fill="#17212B" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="13" font-weight="700" text-anchor="start" id="label-reject">拒</text>
+<text x="404.0" y="530.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="400" text-anchor="start" id="sub-reject">未知字段与非法引用</text>
+<text x="56.0" y="628.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="400" text-anchor="start" id="source-note">依据 README 与分层、验证、条件信号说明。实现标识见核查记录。</text>
+<rect id="store-intent" x="56.0" y="308.0" width="168.0" height="66.0" rx="6" fill="#F7F4EE" stroke="#356A79" stroke-width="1.4"/>
+<ellipse id="term-ir" cx="1072.0" cy="352.0" rx="102.0" ry="56.0" fill="#E9C46A"/>
+<circle id="stage-validate" cx="392.0" cy="296.0" r="18.0" fill="#356A79"/>
+<circle id="stage-analyze" cx="608.0" cy="432.0" r="18.0" fill="#356A79"/>
+<circle id="stage-compile" cx="824.0" cy="296.0" r="18.0" fill="#356A79"/>
+<circle id="term-prompt" cx="928.0" cy="552.0" r="11.0" fill="#356A79"/>
+<circle id="term-view" cx="1072.0" cy="572.0" r="11.0" fill="#356A79"/>
+<circle id="term-render" cx="1196.0" cy="552.0" r="11.0" fill="#2A9D8F"/>
+<text x="392.0" y="301.0" fill="#F7F4EE" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="700" text-anchor="middle">01</text>
+<text x="608.0" y="437.0" fill="#F7F4EE" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="700" text-anchor="middle">02</text>
+<text x="824.0" y="301.0" fill="#F7F4EE" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="700" text-anchor="middle">03</text>
+<text x="1072.0" y="346.0" fill="#17212B" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="18" font-weight="700" text-anchor="middle" id="label-ir">编译 IR</text>
+<text x="1072.0" y="368.0" fill="#17212B" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="13" font-weight="700" text-anchor="middle" id="sub-ir">窄腰</text>
+<text x="140.0" y="336.0" fill="#17212B" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="15" font-weight="700" text-anchor="middle" id="label-intent">YAML / JSON</text>
+<text x="140.0" y="356.0" fill="#5D6873" font-family="Source Han Serif SC, Songti SC, STSong, serif" font-size="12" font-weight="400" text-anchor="middle" id="sub-intent">作者意图</text>
+</svg>

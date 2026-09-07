@@ -1,0 +1,42 @@
+{
+  "id": "cinematography-ir-class-b-architecture",
+  "thesis": "论点：作者意图以 YAML / JSON 进入，经 validate、analyze、compile 收成一份编译 IR；prompt、view、render 只消费这份产物。",
+  "scope": "Class B: author intent YAML/JSON to validate/analyze/compile; compiled IR consumed by prompt/view/render",
+  "page_excludes": [
+    "function names",
+    "type names",
+    "file names"
+  ],
+  "anchors": [
+    {
+      "claim": "Authoring source is YAML/JSON cinematography intent",
+      "file": "README.md",
+      "line": "17-47"
+    },
+    {
+      "claim": "CLI verbs include validate, analyze, compile, prompt, view, render blender",
+      "file": "README.md",
+      "line": "7"
+    },
+    {
+      "claim": "validate catches structural and semantic errors; unknown fields fail closed",
+      "file": "docs/13-validation.md",
+      "line": "12-30"
+    },
+    {
+      "claim": "analyze reports continuity warnings (axis, screen direction, eyeline, 30 deg); they are heuristics, not bans",
+      "file": "README.md",
+      "line": "188-195"
+    },
+    {
+      "claim": "compile produces the shared compiled guidance IR waist",
+      "file": "docs/11-ir-architecture.md",
+      "line": "52-70"
+    },
+    {
+      "claim": "prompt, view, and render consume the compiled result rather than re-interpreting author operations",
+      "file": "docs/15-conditioning-pipeline.md",
+      "line": "15-32"
+    }
+  ]
+}
