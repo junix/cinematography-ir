@@ -60,7 +60,7 @@ snapshots:
 
 install: build
     mkdir -p "{{ install_bin }}"
-    cp target/release/cine-ir "{{ install_bin }}/cine-ir"
+    @set -eu; dest="{{ install_bin }}/cine-ir"; mkdir -p "$(dirname "$dest")"; tmp="$(mktemp "{{ install_bin }}/.cine-ir.XXXXXX")"; trap 'rm -f "$tmp"' EXIT; cp "target/release/cine-ir" "$tmp"; chmod 755 "$tmp"; if [ "$(uname -s)" = "Darwin" ]; then xattr -c "$tmp" 2>/dev/null || true; codesign --force --sign - "$tmp"; fi; mv -f "$tmp" "$dest"
 
 # Remove local build caches and documentation intermediates.
 clean: clean-artifacts
