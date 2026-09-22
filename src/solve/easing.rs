@@ -31,4 +31,3 @@ pub fn ease(easing: Easing, t: f32) -> f32 {
 #[cfg(test)]
 #[path = "easing_tests.rs"]
 mod tests;
-

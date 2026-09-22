@@ -341,4 +341,3 @@ pub fn unit_float(bits: u64) -> f32 {
 #[cfg(test)]
 #[path = "math_tests.rs"]
 mod tests;
-

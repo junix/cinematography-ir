@@ -74,10 +74,7 @@ fn jaws_compiles_phases_screen_constraints_and_prohibitions() {
     assert_eq!(
         separations,
         vec![&ShotConstraintKind::PairScreenSeparation {
-            subject_ids: [
-                "left_beachgoer".to_owned(),
-                "right_beachgoer".to_owned()
-            ],
+            subject_ids: ["left_beachgoer".to_owned(), "right_beachgoer".to_owned()],
             trend: Trend::Increasing,
         }]
     );

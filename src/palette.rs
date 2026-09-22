@@ -183,4 +183,3 @@ pub fn scene_palette(scene: &Scene) -> BTreeMap<String, NamedColor> {
 #[cfg(test)]
 #[path = "palette_tests.rs"]
 mod tests;
-

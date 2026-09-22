@@ -719,9 +719,11 @@ fn full_fidelity_runs_and_invalid_documents_are_rejected() {
         Err(SolveError::Invalid(report)) => {
             assert!(report.has_errors());
             assert!(
-                report.diagnostics.iter().any(|diagnostic| diagnostic.code
-                    == "FRAMING_SUBJECT_UNKNOWN"
-                    && diagnostic.severity == Severity::Error),
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == "FRAMING_SUBJECT_UNKNOWN"
+                        && diagnostic.severity == Severity::Error),
                 "the unknown framing subject must be named: {:#?}",
                 report.diagnostics
             );

@@ -1,10 +1,9 @@
 use super::*;
-use crate::model::{
-    AxisName, CoverageRole, EulerDeg, FrameRate, Handedness, ShotSize, SignedAxis,
-};
+use crate::model::{AxisName, CoverageRole, EulerDeg, FrameRate, Handedness, ShotSize, SignedAxis};
 use crate::palette::Rgb;
-use crate::solve::{Fidelity, SolvedCameraFrame, SolvedShot, SolvedSubjectTrack,
-SOLVED_SCHEMA_VERSION};
+use crate::solve::{
+    Fidelity, SolvedCameraFrame, SolvedShot, SolvedSubjectTrack, SOLVED_SCHEMA_VERSION,
+};
 
 #[test]
 fn default_system_maps_to_blender_axes() {
@@ -92,11 +91,17 @@ fn clamp_range_converts_clamps_and_falls_back_on_invalid_ranges() {
     );
     // Both ends clamp to the scene's inclusive last frame.
     assert_eq!(
-        payload.clamp_range(Some(FrameRange { start: 100, end: 400 })),
+        payload.clamp_range(Some(FrameRange {
+            start: 100,
+            end: 400
+        })),
         [100, 119]
     );
     assert_eq!(
-        payload.clamp_range(Some(FrameRange { start: 300, end: 400 })),
+        payload.clamp_range(Some(FrameRange {
+            start: 300,
+            end: 400
+        })),
         [119, 119]
     );
     // No request: the whole scene, first to last frame.
@@ -137,7 +142,11 @@ fn scene_with_distances(distances: &[f32]) -> SolvedScene {
             name: "Subject".to_owned(),
             kind: SubjectKind::Character,
             dimensions_m: Vec3::new(0.5, 1.7, 0.35),
-            color: Rgb { r: 220, g: 50, b: 47 },
+            color: Rgb {
+                r: 220,
+                g: 50,
+                b: 47,
+            },
             color_name: "red".to_owned(),
             transforms: vec![Transform {
                 position: Vec3::new(d, 0.0, 0.0),

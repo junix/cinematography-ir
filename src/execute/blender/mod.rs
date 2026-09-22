@@ -896,4 +896,3 @@ fn promote_directory(transaction: &Path, destination: &Path) -> Result<()> {
 #[cfg(test)]
 #[path = "blender_tests.rs"]
 mod tests;
-

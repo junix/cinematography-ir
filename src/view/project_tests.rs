@@ -196,7 +196,7 @@ fn fit_fills_the_tighter_axis_and_respects_the_margin() {
     let east = plan.to_canvas(corners[1]);
     assert!((east.x - west.x - 320.0).abs() < 1e-2);
     let ys: Vec<f32> = corners.iter().map(|c| plan.to_canvas(*c).y).collect();
-    let span = ys.iter().cloned().fold(f32::MIN, f32::max)
-        - ys.iter().cloned().fold(f32::MAX, f32::min);
+    let span =
+        ys.iter().cloned().fold(f32::MIN, f32::max) - ys.iter().cloned().fold(f32::MAX, f32::min);
     assert!((span - 4.0 * 32.0).abs() < 1e-2, "{span}");
 }
