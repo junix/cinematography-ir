@@ -8,3 +8,8 @@ __pycache__/
 Cargo.lock
 **/*.rs.bk
 *.pdb
+
+# Hidden files/dirs untracked by sweep on 2026-09-24
+.githooks/pre-commit
+.refactor-baseline/project-profile.md
+.refactor-baseline/tiered-refactoring-progress.md
