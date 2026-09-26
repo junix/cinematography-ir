@@ -5,10 +5,13 @@ arch_name := if arch() == "aarch64" { "arm64" } else { "x86" }
 default_install_bin := home_directory() / "sync" / (os_name + "-" + arch_name + "-bin")
 install_bin := env("SYNC_BIN_DIR", default_install_bin)
 
+# Git build stamp: short sha, suffixed with ".dirty" when the worktree is dirty (ADR-1168).
+stamp := `git rev-parse --short HEAD` + `(git diff --quiet && git diff --cached --quiet) >/dev/null 2>&1 || printf .dirty`
+
 default: build
 
 build:
-    cargo build --release
+    PM_BUILD_SHA=g{{stamp}} cargo build --release
 
 test:
     cargo test --all

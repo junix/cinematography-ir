@@ -17,10 +17,21 @@ use cinematography_ir::{
 use clap::{Parser, Subcommand};
 use schemars::schema_for;
 
+/// `CARGO_PKG_VERSION`, stamped with the git build sha when the justfile
+/// build recipe provides `PM_BUILD_SHA` (ADR-1168), e.g. `0.1.0+g9a1b2c3.dirty`.
+/// Plain semver when building outside just. Leaked to satisfy clap's
+/// `&'static str` version (clap's `string` feature is not enabled).
+fn version() -> &'static str {
+    match option_env!("PM_BUILD_SHA") {
+        Some(stamp) => format!("{}+{}", env!("CARGO_PKG_VERSION"), stamp).leak(),
+        None => env!("CARGO_PKG_VERSION"),
+    }
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "cine-ir")]
 #[command(about = "Validate, inspect, and exchange Cinematography IR documents")]
-#[command(version)]
+#[command(version = version())]
 struct Cli {
     #[command(subcommand)]
     command: Command,
