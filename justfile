@@ -5,6 +5,9 @@ arch_name := if arch() == "aarch64" { "arm64" } else { "x86" }
 default_install_bin := home_directory() / "sync" / (os_name + "-" + arch_name + "-bin")
 install_bin := env("SYNC_BIN_DIR", default_install_bin)
 
+# Rust crate 本地 target 目录（per-crate；ADR-752 统一方案已废弃）
+target_dir := env("CARGO_TARGET_DIR", justfile_directory() / "target")
+
 # Git build stamp: short sha, suffixed with ".dirty" when the worktree is dirty (ADR-1168).
 stamp := `git rev-parse --short HEAD` + `(git diff --quiet && git diff --cached --quiet) >/dev/null 2>&1 || printf .dirty`
 
@@ -26,7 +29,7 @@ guide:
 
 # Validate, compile, prompt, view, and package every example (no Blender needed).
 examples:
-    mkdir -p target/examples
+    mkdir -p "{{ target_dir }}/examples"
     cargo run -q -- validate examples/dialogue.yaml --deny-warnings
     cargo run -q -- validate examples/intentional_axis_cross.yaml --deny-warnings
     cargo run -q -- validate examples/dolly_zoom.yaml --deny-warnings
@@ -41,14 +44,14 @@ examples:
     cargo run -q -- solve examples/crane_reveal.yaml --deny-warnings -o /dev/null
     cargo run -q -- prompt examples/dialogue.yaml > /dev/null
     cargo run -q -- view examples/dialogue.yaml --format ascii --layout strip:v > /dev/null
-    cargo run -q -- view examples/jaws_beach_dolly_zoom.yaml --intent storyboard --sampling phase-keyframes --panel plan,frame,elevation,timeline,metrics --format svg -o target/examples/jaws-storyboard.svg
-    cargo run -q -- view examples/dolly_zoom.yaml --intent model-control --cue-map --sampling op-endpoints --layout separate --format svg -o target/examples/model-control
-    cargo run -q -- view examples/jaws_beach_dolly_zoom.yaml --layout animate:12 --format html -o target/examples/jaws-beach.html
-    cargo run -q -- view examples/follow_handheld.yaml --layout animate:12 --format html -o target/examples/follow-handheld.html
-    cargo run -q -- view examples/crane_reveal.yaml --format png -o target/examples/crane-reveal.png
-    cargo run -q -- render blender examples/dialogue.yaml --profile profiles/execution/generic-dense.json --out-dir target/examples/passes --script-only > /dev/null
-    cargo run -q -- render blender examples/follow_handheld.yaml --out-dir target/examples/follow-passes --passes depth,normal,id --script-only > /dev/null
-    cargo run -q -- render blender examples/crane_reveal.yaml --out-dir target/examples/reveal-passes --passes depth,normal,id,openpose --script-only > /dev/null
+    cargo run -q -- view examples/jaws_beach_dolly_zoom.yaml --intent storyboard --sampling phase-keyframes --panel plan,frame,elevation,timeline,metrics --format svg -o {{ target_dir }}/examples/jaws-storyboard.svg
+    cargo run -q -- view examples/dolly_zoom.yaml --intent model-control --cue-map --sampling op-endpoints --layout separate --format svg -o {{ target_dir }}/examples/model-control
+    cargo run -q -- view examples/jaws_beach_dolly_zoom.yaml --layout animate:12 --format html -o {{ target_dir }}/examples/jaws-beach.html
+    cargo run -q -- view examples/follow_handheld.yaml --layout animate:12 --format html -o {{ target_dir }}/examples/follow-handheld.html
+    cargo run -q -- view examples/crane_reveal.yaml --format png -o {{ target_dir }}/examples/crane-reveal.png
+    cargo run -q -- render blender examples/dialogue.yaml --profile profiles/execution/generic-dense.json --out-dir {{ target_dir }}/examples/passes --script-only > /dev/null
+    cargo run -q -- render blender examples/follow_handheld.yaml --out-dir {{ target_dir }}/examples/follow-passes --passes depth,normal,id --script-only > /dev/null
+    cargo run -q -- render blender examples/crane_reveal.yaml --out-dir {{ target_dir }}/examples/reveal-passes --passes depth,normal,id,openpose --script-only > /dev/null
 
 schema:
     cargo run -q -- schema --output schema/cinematography-ir.schema.json
@@ -63,7 +66,7 @@ snapshots:
 
 install: build
     mkdir -p "{{ install_bin }}"
-    @set -eu; dest="{{ install_bin }}/cine-ir"; mkdir -p "$(dirname "$dest")"; tmp="$(mktemp "{{ install_bin }}/.cine-ir.XXXXXX")"; trap 'rm -f "$tmp"' EXIT; cp "target/release/cine-ir" "$tmp"; chmod 755 "$tmp"; if [ "$(uname -s)" = "Darwin" ]; then xattr -c "$tmp" 2>/dev/null || true; codesign --force --sign - "$tmp"; fi; mv -f "$tmp" "$dest"
+    @set -eu; dest="{{ install_bin }}/cine-ir"; mkdir -p "$(dirname "$dest")"; tmp="$(mktemp "{{ install_bin }}/.cine-ir.XXXXXX")"; trap 'rm -f "$tmp"' EXIT; cp "{{ target_dir }}/release/cine-ir" "$tmp"; chmod 755 "$tmp"; if [ "$(uname -s)" = "Darwin" ]; then xattr -c "$tmp" 2>/dev/null || true; codesign --force --sign - "$tmp"; fi; mv -f "$tmp" "$dest"
 
 # Remove local build caches and documentation intermediates.
 clean: clean-artifacts
