@@ -541,8 +541,15 @@ scenes:
         "held before first key"
     );
     let mid = track.transforms[24].position;
+    // Blocking positions interpolate with the Fritsch–Carlson monotone cubic
+    // (ported from lemo-opuscar core/lib.js:18-42): the flat 0..8 segment
+    // zeroes the tangent at frame 8, so the channel eases out of the hold
+    // instead of kinking. On x keys [(0,0),(8,0),(40,4)] the tangents are
+    // [0, 0, 1/8], giving x(24) = 0.5·4 + (−0.125)·32·(1/8) = 1.5, and by
+    // the same shape z(24) = −0.75; both inside the authored spans (no
+    // overshoot).
     assert!(
-        (mid.x - 2.0).abs() < 1e-4 && (mid.z + 1.0).abs() < 1e-4,
+        (mid.x - 1.5).abs() < 1e-4 && (mid.z + 0.75).abs() < 1e-4,
         "{mid:?}"
     );
     assert!((track.transforms[24].rotation_deg.yaw - 45.0).abs() < 1e-3);
@@ -932,13 +939,16 @@ scenes:
         "starts at initial_transform"
     );
     assert!(
-        (track.transforms[12].position.x - 1.0).abs() < 1e-4,
-        "halfway to the first key"
+        (track.transforms[12].position.x - 1.25).abs() < 1e-4,
+        "monotone cubic eases into the first key: x(12) = 0.5·2 + 0.125·24·(1/12) = 1.25"
     );
     assert!((track.transforms[24].position.x - 2.0).abs() < 1e-4);
     // A boundary keyframe at frame == duration is approached, never reached.
+    // On z keys [(0,0),(24,0),(48,-4)] the tangent at frame 24 is zero, so
+    // the approach is the monotone Hermite, not the straight line: u = 23/24
+    // gives -4·h01(u) + 24·(-1/6)·h11(u) ≈ -3.8250.
     let last = track.transforms[47].position;
-    assert!((last.z - (-4.0 * 23.0 / 24.0)).abs() < 1e-3, "{last:?}");
+    assert!((last.z - (-3.8250)).abs() < 2e-3, "{last:?}");
     assert_eq!(track.cues.len(), 2, "synthetic frame-0 key adds no cue");
 }
 
@@ -1009,4 +1019,115 @@ fn centimetre_documents_solve_like_metre_documents() {
             }
         }
     }
+}
+
+/// Inline project: one character at `subject_z` (on the −Z view axis of a
+/// camera at the origin), a 50 mm lens at `aperture_f`, focus authored at
+/// `focus_m`.
+fn coc_project(aperture_f: f32, focus_m: Option<f32>, subject_z: f32) -> CineProject {
+    let focus = match focus_m {
+        Some(distance) => format!("focus: {{ distance_m: {distance} }}"),
+        None => String::new(),
+    };
+    let source = format!(
+        r#"
+schema_version: "0.1"
+id: coc
+title: CoC
+frame_rate: {{ numerator: 24 }}
+scenes:
+  - id: s
+    title: S
+    duration_frames: 4
+    subjects:
+      - id: hero
+        name: Hero
+        kind: character
+        initial_transform: {{ position: {{ x: 0.0, y: 0.0, z: {subject_z} }} }}
+    shots:
+      - id: only
+        range: {{ start: 0, end: 4 }}
+        framing: {{ shot_size: medium, subject_ids: [hero] }}
+        camera:
+          initial_state:
+            transform: {{ position: {{ x: 0.0, y: 0.0, z: 0.0 }} }}
+            lens: {{ focal_length_mm: 50.0, aperture_f: {aperture_f} }}
+            {focus}
+"#
+    );
+    serde_yaml::from_str(&source).unwrap()
+}
+
+fn solved_coc(aperture_f: f32, focus_m: Option<f32>, subject_z: f32) -> Option<f32> {
+    let project = coc_project(aperture_f, focus_m, subject_z);
+    solve_project(&project, &SolveOptions::default())
+        .unwrap()
+        .solved
+        .scenes[0]
+        .shots[0]
+        .frames[0]
+        .coc_m
+}
+
+#[test]
+fn circle_of_confusion_is_zero_at_the_focus_plane() {
+    use cinematography_ir::solve::circle_of_confusion_m;
+    // Exact zero when the subject sits on the focus plane, for any lens.
+    for aperture in [1.4, 2.8, 8.0] {
+        assert_eq!(circle_of_confusion_m(50.0, aperture, 5.0, 5.0), Some(0.0));
+    }
+    // The solved frame carries the primary framed subject's CoC: aim depth
+    // 5 m (character at z = -5 viewed from the origin) with authored focus
+    // at 5 m is exactly in focus.
+    assert_eq!(solved_coc(2.8, Some(5.0), -5.0), Some(0.0));
+    // No authored focus (and no target to derive one from): no CoC.
+    assert_eq!(solved_coc(2.8, None, -5.0), None);
+}
+
+#[test]
+fn circle_of_confusion_grows_hyperbolically_and_signs_by_depth() {
+    use cinematography_ir::solve::circle_of_confusion_m;
+    // coc ∝ (1/focus - 1/depth): the ratio between two depths must equal
+    // the ratio of those hyperbolic terms, not of |depth - focus|.
+    let coc = |depth| circle_of_confusion_m(50.0, 2.8, 4.0, depth).unwrap();
+    let c5 = coc(5.0);
+    let c6 = coc(6.0);
+    let c12 = coc(12.0);
+    let term = |depth: f32| 1.0 / 4.0 - 1.0 / depth;
+    assert!((c6 / c5 - term(6.0) / term(5.0)).abs() < 1e-5);
+    assert!((c12 / c5 - term(12.0) / term(5.0)).abs() < 1e-5);
+    assert!(c5 > 0.0 && c6 > c5 && c12 > c6, "{c5} {c6} {c12}");
+    // Nearer than the focus plane: negative (lemo's near/far convention).
+    assert!(coc(3.0) < 0.0);
+    // The solved frame agrees with the shared derivation exactly.
+    assert_eq!(
+        solved_coc(2.8, Some(4.0), -5.0),
+        circle_of_confusion_m(50.0, 2.8, 4.0, 5.0)
+    );
+    assert!(solved_coc(2.8, Some(5.0), -3.0).unwrap() < 0.0);
+}
+
+#[test]
+fn circle_of_confusion_scales_with_the_aperture_diameter() {
+    use cinematography_ir::solve::circle_of_confusion_m;
+    // aperture_f is an f-number, so the physical aperture is f/N: halving
+    // the f-number (f/2.8 -> f/1.4) doubles the blur.
+    let fast = circle_of_confusion_m(50.0, 1.4, 4.0, 5.0).unwrap();
+    let slow = circle_of_confusion_m(50.0, 2.8, 4.0, 5.0).unwrap();
+    assert!((fast - 2.0 * slow).abs() < 1e-6, "{fast} vs {slow}");
+    assert!(
+        solved_coc(1.4, Some(4.0), -5.0).unwrap() > solved_coc(2.8, Some(4.0), -5.0).unwrap(),
+        "a faster lens must defocus the same subject more"
+    );
+}
+
+#[test]
+fn circle_of_confusion_rejects_unusable_optics() {
+    use cinematography_ir::solve::circle_of_confusion_m;
+    assert_eq!(circle_of_confusion_m(50.0, 2.8, 4.0, 0.0), None);
+    assert_eq!(circle_of_confusion_m(50.0, 2.8, 4.0, -1.0), None);
+    assert_eq!(circle_of_confusion_m(50.0, 0.0, 4.0, 5.0), None);
+    assert_eq!(circle_of_confusion_m(0.0, 2.8, 4.0, 5.0), None);
+    assert_eq!(circle_of_confusion_m(50.0, 2.8, 0.0, 5.0), None);
+    assert_eq!(circle_of_confusion_m(50.0, 2.8, f32::NAN, 5.0), None);
 }

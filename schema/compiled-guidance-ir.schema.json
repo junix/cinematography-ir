@@ -1946,6 +1946,15 @@
           "type": "number",
           "format": "float"
         },
+        "coc_m": {
+          "description": "Signed thin-lens circle of confusion of the shot's primary framed subject at this frame (sensor-plane metres; negative = nearer than the focus plane). Mirrors `SolvedCameraFrame::coc_m`; see [`crate::solve::circle_of_confusion_m`].",
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
         "focal_length_mm": {
           "type": "number",
           "format": "float"
@@ -3036,6 +3045,15 @@
           "type": "number",
           "format": "float"
         },
+        "coc_m": {
+          "description": "Signed thin-lens circle of confusion (sensor-plane blur diameter, in metres) of the shot's primary framed subject at this frame. Negative when the subject is nearer than the focus plane, positive when it is farther; `None` when focus or lens state is unknown or the subject is behind the camera. See [`circle_of_confusion_m`].",
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
         "focal_length_mm": {
           "type": "number",
           "format": "float"
@@ -3209,6 +3227,15 @@
         "center": {
           "$ref": "#/definitions/ScreenPoint"
         },
+        "coc_m": {
+          "description": "Signed thin-lens circle of confusion of this subject at this frame (sensor-plane metres; negative = nearer than the focus plane, positive = farther). Derived with the lemo-opuscar CoC structure `aper * (1/focus - 1/z)` (core/three/post.js:20); see [`crate::solve::circle_of_confusion_m`].",
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
         "depth_m": {
           "type": [
             "number",
@@ -3216,7 +3243,17 @@
           ],
           "format": "float"
         },
+        "focus_coc_score": {
+          "description": "CoC-based sharpness `exp(-|coc| / coc_reference)`, where the reference is the classical d/1500 acceptable circle of confusion of the shot's sensor. Unlike `focus_score` it responds to the aperture: the same depth error is worse on a fast lens.",
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
         "focus_score": {
+          "description": "Aperture-independent sharpness heuristic `exp(-|depth - focus| / max(0.05 * depth, 0.1))`. Kept for existing consumers; prefer `focus_coc_score`, which measures defocus through the thin lens.",
           "type": [
             "number",
             "null"

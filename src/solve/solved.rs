@@ -113,6 +113,69 @@ pub struct SolvedCameraFrame {
     pub focus_distance_m: Option<f32>,
     #[serde(default)]
     pub focus_target: Option<TargetRef>,
+    /// Signed thin-lens circle of confusion (sensor-plane blur diameter, in
+    /// metres) of the shot's primary framed subject at this frame. Negative
+    /// when the subject is nearer than the focus plane, positive when it is
+    /// farther; `None` when focus or lens state is unknown or the subject is
+    /// behind the camera. See [`circle_of_confusion_m`].
+    #[serde(default)]
+    pub coc_m: Option<f32>,
+}
+
+/// Signed thin-lens circle of confusion at the sensor plane for a subject at
+/// depth `depth_m`, in metres of blur-circle diameter:
+///
+/// ```text
+/// coc = f_m * aperture_diameter_m * (1/focus_m - 1/depth_m)
+///     = (f_m^2 / aperture_f) * (1/focus_m - 1/depth_m)
+/// ```
+///
+/// Ported from the lemo-opuscar depth-of-field shader
+/// (`core/three/post.js:20`), which computes
+/// `c = clamp(aper * (1.0/focus - 1.0/z), -maxCoc, maxCoc)` with negative =
+/// near, positive = far. Adapted to this IR's fields: lemo's `aper` uniform
+/// is a blur-strength gain (larger value, more blur), while `aperture_f` is
+/// an f-number, so the aperture measure is the physical diameter
+/// `focal_length_mm / aperture_f`; multiplying by the focal length (in
+/// metres) yields the standard thin-lens sensor blur
+/// `f^2 * |z - F| / (N * F * z)`. The value is returned unclamped: consumers
+/// apply their own blur budget, like lemo clamps to `maxCoc` pixels.
+///
+/// Returns `None` when the lens or focus inputs are not positive and finite,
+/// or the subject is at `depth_m <= 0` (behind/at the camera). At the focus
+/// plane the result is exactly `Some(0.0)`.
+pub fn circle_of_confusion_m(
+    focal_length_mm: f32,
+    aperture_f: f32,
+    focus_distance_m: f32,
+    depth_m: f32,
+) -> Option<f32> {
+    let f_m = focal_length_mm / 1000.0;
+    if !f_m.is_finite()
+        || !aperture_f.is_finite()
+        || !focus_distance_m.is_finite()
+        || !depth_m.is_finite()
+        || f_m <= 0.0
+        || aperture_f <= 0.0
+        || focus_distance_m <= 0.0
+        || depth_m <= 0.0
+    {
+        return None;
+    }
+    Some(f_m * (f_m / aperture_f) * (1.0 / focus_distance_m - 1.0 / depth_m))
+}
+
+impl SolvedCameraFrame {
+    /// Circle of confusion for a subject at view-space depth `depth_m` under
+    /// this frame's lens and focus state. See [`circle_of_confusion_m`].
+    pub fn coc_at(&self, depth_m: f32) -> Option<f32> {
+        circle_of_confusion_m(
+            self.focal_length_mm,
+            self.aperture_f,
+            self.focus_distance_m?,
+            depth_m,
+        )
+    }
 }
 
 impl SolvedProject {

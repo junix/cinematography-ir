@@ -290,6 +290,20 @@ fn compiled_execution_publishes_typed_scene_and_shot_bundles() {
     assert_eq!(guidance["phases"].as_array().unwrap().len(), 3);
     assert!(guidance["screen_tracks"].as_array().unwrap().len() >= 3);
     assert!(guidance["constraints"].as_array().unwrap().len() >= 10);
+    // The published per-subject screen metadata carries the thin-lens CoC
+    // (coc_m) and its aperture-aware score alongside the legacy heuristic.
+    let screen_tracks: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(shot.join("metadata/screen_tracks.json")).unwrap(),
+    )
+    .unwrap();
+    let first_subject = screen_tracks.as_array().unwrap().first().unwrap();
+    let first_frame = first_subject["frames"].as_array().unwrap().first().unwrap();
+    for key in ["coc_m", "focus_coc_score", "focus_score", "depth_m"] {
+        assert!(
+            first_frame.get(key).is_some(),
+            "screen-track metadata must publish {key}"
+        );
+    }
     let manifest: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&bundle.manifest_path).unwrap()).unwrap();
     assert_eq!(manifest["status"], "complete");

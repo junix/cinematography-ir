@@ -15,8 +15,8 @@ use crate::validate::validate_project;
 
 pub use sampler::{aim_height_fraction, default_dimensions, handheld_noise, SceneContext};
 pub use solved::{
-    Fidelity, SolvedCameraFrame, SolvedCue, SolvedProject, SolvedScene, SolvedShot,
-    SolvedSubjectTrack, SOLVED_SCHEMA_VERSION,
+    circle_of_confusion_m, Fidelity, SolvedCameraFrame, SolvedCue, SolvedProject, SolvedScene,
+    SolvedShot, SolvedSubjectTrack, SOLVED_SCHEMA_VERSION,
 };
 
 #[derive(Debug, Clone, Default)]

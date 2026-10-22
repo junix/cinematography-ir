@@ -280,6 +280,15 @@
           "type": "number",
           "format": "float"
         },
+        "coc_m": {
+          "description": "Signed thin-lens circle of confusion (sensor-plane blur diameter, in metres) of the shot's primary framed subject at this frame. Negative when the subject is nearer than the focus plane, positive when it is farther; `None` when focus or lens state is unknown or the subject is behind the camera. See [`circle_of_confusion_m`].",
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
         "focal_length_mm": {
           "type": "number",
           "format": "float"

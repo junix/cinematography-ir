@@ -38,9 +38,10 @@ use crate::model::{
     SubjectKind, TargetRef, TimedCameraOperation, Transform, TransformSpace,
 };
 use crate::palette::scene_palette;
-use crate::solve::easing::ease;
+use crate::solve::easing::{ease, monotone_cubic};
 use crate::solve::solved::{
-    SolvedCameraFrame, SolvedCue, SolvedScene, SolvedShot, SolvedSubjectTrack,
+    circle_of_confusion_m, SolvedCameraFrame, SolvedCue, SolvedScene, SolvedShot,
+    SolvedSubjectTrack,
 };
 
 const DEFAULT_FRAME_ASPECT: f32 = 16.0 / 9.0;
@@ -160,9 +161,10 @@ pub fn sample_subjects(scene: &Scene, _cs: &CoordinateSystem) -> Vec<SolvedSubje
         .collect()
 }
 
-/// Piecewise-linear blocking. A keyframe may sit on the scene's end boundary
-/// (`frame == duration_frames`): sampled frames approach it but, like every
-/// half-open range, never land on it.
+/// Monotone-cubic blocking (positions; rotation/scale stay linear). A
+/// keyframe may sit on the scene's end boundary (`frame ==
+/// duration_frames`): sampled frames approach it but, like every half-open
+/// range, never land on it.
 fn interpolate_transform(
     keyframes: &[BlockingKeyframe],
     initial: Transform,
@@ -190,8 +192,30 @@ fn interpolate_transform(
     } else {
         1.0
     };
+    // Positions interpolate per channel with the Fritsch–Carlson monotone
+    // cubic (ported from lemo-opuscar core/lib.js:18-42, where `track()`
+    // builds one monotone curve per keyframed channel): keyframe corners
+    // round off instead of kinking, and authored extremes are never
+    // overshot. Validation guarantees strictly increasing key frames, which
+    // is the precondition `monotone_cubic` states. Rotation stays
+    // angle-lerped and scale linear: wrapped angles have no monotone
+    // ordering, and scale keys are rare enough that the kink is invisible.
+    let axis = |get: fn(&Vec3) -> f32| -> Vec<(f32, f32)> {
+        keyframes
+            .iter()
+            .map(|k| (k.frame as f32, get(&k.transform.position)))
+            .collect()
+    };
+    let keys_x = axis(|v| v.x);
+    let keys_y = axis(|v| v.y);
+    let keys_z = axis(|v| v.z);
+    let f = frame as f32;
     Transform {
-        position: a.transform.position.lerp(b.transform.position, t),
+        position: Vec3::new(
+            monotone_cubic(&keys_x, f),
+            monotone_cubic(&keys_y, f),
+            monotone_cubic(&keys_z, f),
+        ),
         rotation_deg: EulerDeg {
             pitch: lerp_angle_deg(
                 a.transform.rotation_deg.pitch,
@@ -335,6 +359,20 @@ pub fn sample_shot(ctx: &SceneContext<'_>, shot: &Shot) -> SolvedShot {
                 .and_then(|t| ctx.resolve(t, scene_frame))
                 .map(|p| (p - position).length())
         });
+        // Thin-lens CoC of the shot's primary framed subject: the per-frame
+        // defocus signal consumers (views, adapters) need without re-deriving
+        // lens geometry. The subject's aim point is used so the CoC refers to
+        // the same point cameras aim and focus at.
+        let coc_m = shot
+            .framing
+            .subject_ids
+            .first()
+            .and_then(|id| ctx.subjects.iter().find(|track| &track.subject_id == id))
+            .map(|track| ctx.aim_point(track, scene_frame))
+            .and_then(|aim| {
+                let depth = (aim - position).dot(basis.forward);
+                circle_of_confusion_m(state.focal_length_mm, aperture_f, focus_distance_m?, depth)
+            });
 
         frames.push(SolvedCameraFrame {
             frame: scene_frame,
@@ -348,6 +386,7 @@ pub fn sample_shot(ctx: &SceneContext<'_>, shot: &Shot) -> SolvedShot {
             horizontal_fov_deg: horizontal_fov_deg(state.focal_length_mm, sensor_width_mm),
             focus_distance_m,
             focus_target: state.focus_target.clone(),
+            coc_m,
         });
     }
 

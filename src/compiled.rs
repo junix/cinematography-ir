@@ -214,6 +214,12 @@ pub struct LensFrame {
     pub sensor_width_mm: f32,
     pub aperture_f: f32,
     pub anamorphic_squeeze: f32,
+    /// Signed thin-lens circle of confusion of the shot's primary framed
+    /// subject at this frame (sensor-plane metres; negative = nearer than
+    /// the focus plane). Mirrors `SolvedCameraFrame::coc_m`; see
+    /// [`crate::solve::circle_of_confusion_m`].
+    #[serde(default)]
+    pub coc_m: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -281,7 +287,23 @@ pub struct SubjectScreenFrame {
     pub visible_fraction: f32,
     pub center: ScreenPoint,
     pub depth_m: Option<f32>,
+    /// Aperture-independent sharpness heuristic `exp(-|depth - focus| /
+    /// max(0.05 * depth, 0.1))`. Kept for existing consumers; prefer
+    /// `focus_coc_score`, which measures defocus through the thin lens.
     pub focus_score: Option<f32>,
+    /// Signed thin-lens circle of confusion of this subject at this frame
+    /// (sensor-plane metres; negative = nearer than the focus plane,
+    /// positive = farther). Derived with the lemo-opuscar CoC structure
+    /// `aper * (1/focus - 1/z)` (core/three/post.js:20); see
+    /// [`crate::solve::circle_of_confusion_m`].
+    #[serde(default)]
+    pub coc_m: Option<f32>,
+    /// CoC-based sharpness `exp(-|coc| / coc_reference)`, where the
+    /// reference is the classical d/1500 acceptable circle of confusion of
+    /// the shot's sensor. Unlike `focus_score` it responds to the aperture:
+    /// the same depth error is worse on a fast lens.
+    #[serde(default)]
+    pub focus_coc_score: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Default)]
@@ -888,6 +910,7 @@ fn compile_shot(
                     sensor_width_mm: solved.sensor_width_mm,
                     aperture_f: frame.aperture_f,
                     anamorphic_squeeze: lens.anamorphic_squeeze,
+                    coc_m: frame.coc_m,
                 })
                 .collect(),
         },
@@ -1128,6 +1151,7 @@ fn compile_screen_tracks(
             frames: Vec::with_capacity(shot.frames.len()),
         })
         .collect();
+    let coc_reference = coc_reference_m(shot.sensor_width_mm, aspect);
     for camera in &shot.frames {
         let projected: Vec<Option<ProjectedSubject>> = scene
             .subjects
@@ -1164,6 +1188,12 @@ fn compile_screen_tracks(
                 let scale = (value.depth * 0.05).max(0.1);
                 (-(value.depth - focus).abs() / scale).exp()
             });
+            // Thin-lens CoC of this subject (lemo-opuscar core/three/post.js:20)
+            // and the CoC-based sharpness score against the sensor's d/1500
+            // acceptable blur. `focus_score` above stays as the
+            // aperture-independent legacy heuristic.
+            let coc_m = camera.coc_at(value.depth);
+            let focus_coc_score = coc_m.map(|c| (-(c.abs() / coc_reference)).exp());
             let _geometry = source_subjects
                 .iter()
                 .find(|source| source.id == subject.subject_id)
@@ -1176,6 +1206,8 @@ fn compile_screen_tracks(
                 center: value.bbox.center(),
                 depth_m: Some(value.depth),
                 focus_score,
+                coc_m,
+                focus_coc_score,
             });
         }
     }
@@ -1965,6 +1997,15 @@ pub(crate) fn shot_size_bounds(value: ShotSize) -> Option<(f32, f32)> {
         ShotSize::ExtremeCloseUp => Some((0.82, 1.60)),
         ShotSize::Insert | ShotSize::Custom => None,
     }
+}
+
+/// Classical acceptable circle of confusion of a sensor, in metres: the
+/// diagonal divided by 1500 (the usual d/1500 criterion). Used as the 1/e
+/// reference of the CoC-based focus score, so the score is aperture- and
+/// format-aware: `exp(-1.0)` is blur at the sensor's acceptable limit.
+fn coc_reference_m(sensor_width_mm: f32, aspect: f32) -> f32 {
+    let diagonal_mm = sensor_width_mm * (1.0 + 1.0 / (aspect * aspect)).sqrt();
+    diagonal_mm / 1500.0 / 1000.0
 }
 
 /// Average horizontal and vertical viewing angles for the primary framed

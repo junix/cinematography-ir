@@ -130,6 +130,7 @@ fn camera_at_origin(frame: u64) -> SolvedCameraFrame {
         horizontal_fov_deg: 39.6,
         focus_distance_m: None,
         focus_target: None,
+        coc_m: None,
     }
 }
 
